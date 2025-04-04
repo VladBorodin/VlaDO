@@ -12,7 +12,6 @@ namespace VlaDO.Models
         public string Email { get; set; } = string.Empty;
         [Required]
         public Guid ClientTypeId { get; set; }
-        public Guid? CompanyHashId { get; set; }
         [Required]
         public string PasswordHash { get; set; } = string.Empty;
     }

@@ -1,6 +1,10 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+﻿using System;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
+using BCrypt.Net;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using VlaDO.DTOs;
 using VlaDO.Models;
@@ -10,20 +14,29 @@ namespace VlaDO.Services
 {
     public class AuthService
     {
-        private readonly IGenericRepository<User> _userRepository;
+        private readonly IUserRepository _userRepository;
+        private readonly IGenericRepository<ClientType> _clientTypeRepository;
         private readonly IConfiguration _config;
 
-        public AuthService(IGenericRepository<User> userRepository, IConfiguration config)
+        public AuthService(
+            IUserRepository userRepository,
+            IGenericRepository<ClientType> clientTypeRepository,
+            IConfiguration config)
         {
-            _userRepository = userRepository;
-            _config = config;
+            _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+            _clientTypeRepository = clientTypeRepository ?? throw new ArgumentNullException(nameof(clientTypeRepository));
+            _config = config ?? throw new ArgumentNullException(nameof(config));
         }
 
         public async Task<bool> RegisterAsync(RegisterDto dto)
         {
-            var existingUser = (await _userRepository.FindAsync(u => u.Email == dto.Email)).FirstOrDefault();
+            var existingUser = await _userRepository.GetByEmailAsync(dto.Email);
             if (existingUser != null)
                 throw new InvalidOperationException("Email уже зарегистрирован");
+
+            var clientTypeExists = await _clientTypeRepository.GetByIdAsync(dto.ClientTypeId);
+            if (clientTypeExists == null)
+                throw new InvalidOperationException("Выбранный тип клиента не существует.");
 
             var newUser = new User
             {
@@ -39,7 +52,7 @@ namespace VlaDO.Services
 
         public async Task<string?> LoginAsync(LoginDto dto)
         {
-            var user = (await _userRepository.FindAsync(u => u.Email == dto.Email)).FirstOrDefault();
+            var user = await _userRepository.GetByEmailAsync(dto.Email);
             if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
                 return null;
 
