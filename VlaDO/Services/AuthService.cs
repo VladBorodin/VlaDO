@@ -15,16 +15,13 @@ namespace VlaDO.Services
     public class AuthService
     {
         private readonly IUserRepository _userRepository;
-        private readonly IGenericRepository<ClientType> _clientTypeRepository;
         private readonly IConfiguration _config;
 
         public AuthService(
             IUserRepository userRepository,
-            IGenericRepository<ClientType> clientTypeRepository,
             IConfiguration config)
         {
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
-            _clientTypeRepository = clientTypeRepository ?? throw new ArgumentNullException(nameof(clientTypeRepository));
             _config = config ?? throw new ArgumentNullException(nameof(config));
         }
 
@@ -34,15 +31,10 @@ namespace VlaDO.Services
             if (existingUser != null)
                 throw new InvalidOperationException("Email уже зарегистрирован");
 
-            var clientTypeExists = await _clientTypeRepository.GetByIdAsync(dto.ClientTypeId);
-            if (clientTypeExists == null)
-                throw new InvalidOperationException("Выбранный тип клиента не существует.");
-
             var newUser = new User
             {
                 Name = dto.Name,
                 Email = dto.Email,
-                ClientTypeId = dto.ClientTypeId,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 

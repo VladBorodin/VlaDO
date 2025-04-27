@@ -36,5 +36,6 @@ namespace VlaDO.Models
 
         [MaxLength(128)]
         public string? PrevHash { get; set; } // Хеш предыдущей версии (для контроля целостности)
+        public Guid RoomId { get; set; }
     }
 }

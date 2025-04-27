@@ -17,9 +17,18 @@ namespace VlaDO.Controllers
             _authService = authService;
         }
 
+        /// <summary>
+        /// Регистрация нового пользователя.
+        /// </summary>
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
+            if (dto.Password != dto.ConfirmPassword)
+                return BadRequest(new { message = "Пароли не совпадают" });
+
             try
             {
                 await _authService.RegisterAsync(dto);
@@ -31,12 +40,18 @@ namespace VlaDO.Controllers
             }
         }
 
+        /// <summary>
+        /// Вход в систему и получение JWT-токена.
+        /// </summary>
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
             var token = await _authService.LoginAsync(dto);
-            if (token == null)
-                return Unauthorized(new { message = "Неверные учетные данные" });
+            if (token is null)
+                return Unauthorized(new { message = "Неверные учётные данные" });
 
             return Ok(new { token });
         }

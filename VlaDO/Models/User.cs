@@ -4,15 +4,16 @@ namespace VlaDO.Models
 {
     public class User
     {
-        [Key]
-        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid Id { get; set; }
+        [Required, MaxLength(150)]
+        public string Name { get; set; } = null!;
         [Required, MaxLength(255)]
-        public string Name { get; set; } = string.Empty;
-        [Required, MaxLength(255)]
-        public string Email { get; set; } = string.Empty;
+        [EmailAddress]
+        public string Email { get; set; } = null!;
         [Required]
-        public Guid ClientTypeId { get; set; }
-        [Required]
-        public string PasswordHash { get; set; } = string.Empty;
+        public string PasswordHash { get; set; } = null!;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public virtual ICollection<Room> OwnedRooms { get; set; } = new List<Room>();
+        public virtual ICollection<Room> GuestRooms { get; set; } = new List<Room>();
     }
 }

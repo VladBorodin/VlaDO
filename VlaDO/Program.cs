@@ -13,6 +13,8 @@ builder.Services.AddDbContext<DocumentFlowContext>(options => options.UseSqlite(
 
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<RoomService>();
+builder.Services.AddScoped<DocumentService>();
 
 builder.Services.AddScoped<AuthService>();
 
