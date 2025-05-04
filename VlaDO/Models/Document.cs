@@ -5,37 +5,28 @@ namespace VlaDO.Models
     public class Document
     {
         [Key]
-        public Guid Id { get; set; } = Guid.NewGuid(); // Уникальный идентификатор документа
-
+        public Guid Id { get; set; } = Guid.NewGuid();
+        [Required, MaxLength(255)]
+        public string Name { get; set; } = string.Empty;
         [Required]
-        [MaxLength(255)]
-        public string Name { get; set; } = string.Empty; // Название документа
-
+        public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
         [Required]
-        public DateTime CreatedOn { get; set; } = DateTime.UtcNow; // Дата создания
-
+        public Guid CreatedBy { get; set; }
         [Required]
-        public Guid CreatedBy { get; set; } // Кто создал документ
-
-        [Required]
-        public int Version { get; set; } = 1; // Номер версии документа
-
-        public Guid? ParentDoc { get; set; } // Ссылка на предыдущую версию (NULL для первой)
-
-        public byte[]? Data { get; set; } // Файл документа (BLOB) или NULL, если хранится во внешнем хранилище
-
+        public int Version { get; set; } = 1;
+        public Guid? ParentDoc { get; set; }
+        public byte[]? Data { get; set; }
         [MaxLength(1024)]
-        public string? Note { get; set; } // Примечания
-
-        [MaxLength(512)]
-        public string? Allowed { get; set; } // Зашифрованные права доступа
-
-        [Required]
+        public string? Note { get; set; }
+        [Required, MaxLength(128)]
+        public string Hash { get; set; } = string.Empty;
         [MaxLength(128)]
-        public string Hash { get; set; } = string.Empty; // Хеш текущей версии
-
-        [MaxLength(128)]
-        public string? PrevHash { get; set; } // Хеш предыдущей версии (для контроля целостности)
-        public Guid RoomId { get; set; }
+        public string? PrevHash { get; set; }
+        public Guid? RoomId { get; set; }
+        public Room? Room { get; set; }
+        /// <summary>
+        /// Публичные токены
+        /// </summary>
+        public ICollection<DocumentToken> Tokens { get; set; } = new List<DocumentToken>();
     }
 }

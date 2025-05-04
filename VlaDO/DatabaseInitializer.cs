@@ -1,27 +1,31 @@
-﻿namespace VlaDO
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace VlaDO;
+
+public static class DatabaseInitializer
 {
-    public static class DatabaseInitializer
+    public static void EnsureDatabaseCreated(IServiceProvider services)
     {
-        public static void EnsureDatabaseCreated(IServiceProvider serviceProvider)
+        using var scope = services.CreateScope();
+        var ctx = scope.ServiceProvider.GetRequiredService<DocumentFlowContext>();
+        var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+        var logger = loggerFactory.CreateLogger("DatabaseInitializer");
+
+        try
         {
-            using var scope = serviceProvider.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<DocumentFlowContext>();
+            if (ctx.Database.EnsureCreated())
+                logger.LogInformation("База данных создана с нуля.");
+            else
+                logger.LogInformation("Схема БД уже существовала – пропуск создания.");
 
-            var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-            var logger = loggerFactory.CreateLogger("DatabaseInitializer");
-
-            try
-            {
-                logger.LogInformation("Проверка базы данных...");
-
-                context.Database.EnsureCreated();
-
-                logger.LogInformation("База данных успешно проверена и создана.");
-            }
-            catch (Exception ex)
-            {
-                logger.LogError($"Ошибка при инициализации базы данных: {ex.Message}");
-            }
+            // сидеры (Roles, ClientTypes и т.п.)
+            // await SeedDataAsync(ctx, logger);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ошибка при создании базы данных");
+            throw;      // пусть приложение упадёт, чтобы не скрыть проблему
         }
     }
 }

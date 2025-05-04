@@ -10,55 +10,54 @@ namespace VlaDO.Repositories
 {
     public class GenericRepository<T> : IGenericRepository<T> where T : class
     {
-        protected readonly DocumentFlowContext _context;
-        private readonly DbSet<T> _dbSet;
+        protected readonly DocumentFlowContext _ctx;
+        private readonly DbSet<T> _set;
 
-        public GenericRepository(DocumentFlowContext context)
+        public GenericRepository(DocumentFlowContext ctx)
         {
-            _context = context;
-            _dbSet = context.Set<T>();
+            _ctx = ctx;
+            _set = ctx.Set<T>();
         }
 
-        public async Task<IEnumerable<T>> GetAllAsync()
+        // ────────── Чтение
+        public async Task<IEnumerable<T>> GetAllAsync() => (IEnumerable<T>)await _set.ToListAsync();
+
+        public async Task<T?> GetByIdAsync(Guid id, params Expression<Func<T, object>>[] inc)
         {
-            return await _dbSet.ToListAsync();
+            IQueryable<T> q = _set;
+            q = inc.Aggregate(q, (cur, i) => cur.Include(i));
+            return await q.FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == id);
         }
 
-        public async Task<T?> GetByIdAsync(Guid id)
-        {
-            return await _dbSet.FindAsync(id);
-        }
+        public async Task<IEnumerable<T>> GetPagedAsync(int page, int size) => (IEnumerable<T>)await _set
+           .Skip((page - 1) * size)
+           .Take(size)
+           .ToListAsync();
 
-        public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
+        public async Task<IEnumerable<T>> FindAsync(
+            Expression<Func<T, bool>> pred,
+            Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
+            params Expression<Func<T, object>>[] inc)
         {
-            return await _dbSet.Where(predicate).ToListAsync();
+            IQueryable<T> q = _set;
+            q = inc.Aggregate(q, (cur, i) => cur.Include(i));
+            q = q.Where(pred);
+            if (orderBy != null) q = orderBy(q);
+            return await q.ToListAsync();
         }
+        public Task<bool> ExistsAsync(Guid id) =>
+            _set.AnyAsync(e => EF.Property<Guid>(e, "Id") == id);
 
-        public async Task<bool> ExistsAsync(Guid id)
-        {
-            return await _dbSet.AnyAsync(e => EF.Property<Guid>(e, "Id") == id);
-        }
-
-        public async Task AddAsync(T entity)
-        {
-            _dbSet.Add(entity);
-            await _context.SaveChangesAsync();
-        }
-
-        public async Task UpdateAsync(T entity)
-        {
-            _dbSet.Update(entity);
-            await _context.SaveChangesAsync();
-        }
-
+        // ────────── Изменение (без SaveChanges)
+        public Task AddAsync(T e) { _set.Add(e); return Task.CompletedTask; }
+        public Task AddRangeAsync(IEnumerable<T> en) { _set.AddRange(en); return Task.CompletedTask; }
+        public Task UpdateAsync(T e) { _set.Update(e); return Task.CompletedTask; }
+        public Task UpdateRangeAsync(IEnumerable<T> en) { _set.UpdateRange(en); return Task.CompletedTask; }
         public async Task DeleteAsync(Guid id)
         {
-            var entity = await _dbSet.FindAsync(id);
-            if (entity != null)
-            {
-                _dbSet.Remove(entity);
-                await _context.SaveChangesAsync();
-            }
+            var e = await _set.FindAsync(id);
+            if (e != null) _set.Remove(e);
         }
     }
+
 }

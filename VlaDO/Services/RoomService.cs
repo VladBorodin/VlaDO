@@ -5,20 +5,29 @@ namespace VlaDO.Services;
 
 public class RoomService
 {
-    private readonly IGenericRepository<Room> _roomRepo;
-
-    public RoomService(IGenericRepository<Room> roomRepo) => _roomRepo = roomRepo;
+    private readonly IUnitOfWork _uow;
+    public RoomService(IUnitOfWork uow) => _uow = uow;
 
     public async Task<Guid> CreateAsync(Guid ownerId, string? title)
     {
         var room = new Room { OwnerId = ownerId, Title = title };
-        await _roomRepo.AddAsync(room);
+        await _uow.Rooms.AddAsync(room);
+        await _uow.CommitAsync();
         return room.Id;
     }
 
-    public Task<IEnumerable<Room>> ListAsync(Guid ownerId) =>
-        _roomRepo.FindAsync(r => r.OwnerId == ownerId);
+    public async Task AddUserAsync(Guid roomId, Guid userId, AccessLevel level)
+    {
+        await _uow.Rooms.AddUserToRoomAsync(roomId, userId, level);
+    }
 
-    public Task DeleteAsync(Guid roomId, Guid ownerId)
-        => _roomRepo.DeleteAsync(roomId); // доп-проверка хозяина при желании
+    public async Task ChangeAccessAsync(Guid roomId, Guid userId, AccessLevel level)
+    {
+        await _uow.Rooms.UpdateUserAccessLevelAsync(roomId, userId, level);
+    }
+
+    public async Task RemoveUserAsync(Guid roomId, Guid userId)
+    {
+        await _uow.Rooms.RemoveUserFromRoomAsync(roomId, userId);
+    }
 }

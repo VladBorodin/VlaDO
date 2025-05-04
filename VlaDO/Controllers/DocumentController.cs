@@ -1,45 +1,48 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using VlaDO.DTOs;
+using VlaDO.Models;
 using VlaDO.Services;
 
 namespace VlaDO.Controllers;
 
-[ApiController]
-[Authorize]
-[Route("api")]
+[ApiController, Route("api/documents")]
 public class DocumentController : ControllerBase
 {
-    private readonly DocumentService _docs;
-    public DocumentController(DocumentService docs) => _docs = docs;
+    private readonly IUnitOfWork _uow;
+    public DocumentController(IUnitOfWork u) => _uow = u;
 
-    [HttpPost("rooms/{roomId:guid}/docs")]
-    [RequestSizeLimit(10_000_000)]
-    public async Task<IActionResult> Upload(Guid roomId, [FromForm] IFormFile file)
+    [Authorize]
+    [HttpPost("{id:guid}/tokens")]
+    public async Task<IActionResult> GenerateToken(Guid id, [FromBody] GenerateTokenDto dto)
     {
-        if (file is null || file.Length == 0) return BadRequest("Файл пуст");
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms);
+        var userId = User.GetUserId();
+        var doc = await _uow.Documents.GetByIdAsync(id);
+        if (doc?.CreatedBy != userId) return Forbid();
 
-        var userId = Guid.Parse(User.FindFirst("nameidentifier")!.Value);
-        var id = await _docs.UploadAsync(roomId, userId, file.FileName, ms.ToArray());
-        return Ok(new { id });
+        var token = new DocumentToken
+        {
+            DocumentId = id,
+            Token = Guid.NewGuid().ToString("N"),
+            AccessLevel = dto.AccessLevel,
+            ExpiresAt = DateTime.UtcNow.AddDays(dto.DaysValid)
+        };
+        await _uow.Tokens.AddAsync(token);
+        await _uow.CommitAsync();
+        return Ok(new { token = token.Token });
     }
 
-    [HttpGet("rooms/{roomId:guid}/docs")]
-    public async Task<IActionResult> List(Guid roomId)
-        => Ok(await _docs.ListAsync(roomId));
-
-    [HttpGet("docs/{id:guid}")]
-    public async Task<IActionResult> Get(Guid id)
+    [AllowAnonymous]
+    [HttpGet("shared/{token}")]
+    public async Task<IActionResult> GetByToken(string token)
     {
-        var doc = await _docs.GetAsync(id);
-        return doc is null ? NotFound() : File(doc.Data!, "application/octet-stream", doc.Name);
-    }
+        var dt = (await _uow.Tokens.FindAsync(
+                        t => t.Token == token && t.ExpiresAt > DateTime.UtcNow,
+                        null, t => t.Document))
+                 .FirstOrDefault();
+        if (dt is null) return NotFound("Токен недействителен");
 
-    [HttpDelete("docs/{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
-    {
-        await _docs.DeleteAsync(id);
-        return NoContent();
+        var doc = dt.Document;
+        return File(doc.Data!, "application/octet-stream", doc.Name);
     }
 }

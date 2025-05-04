@@ -5,34 +5,30 @@ using VlaDO.Services;
 
 namespace VlaDO.Controllers;
 
-[ApiController]
-[Authorize]
-[Route("api/rooms")]
+[ApiController, Authorize, Route("api/rooms")]
 public class RoomController : ControllerBase
 {
-    private readonly RoomService _svc;
-    public RoomController(RoomService svc) => _svc = svc;
+    private readonly IRoomService _svc;
+    private readonly IUnitOfWork _uow;
+    public RoomController(IRoomService s, IUnitOfWork u) { _svc = s; _uow = u; }
 
-    [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateRoomDto dto)
+    [HttpPost("{roomId:guid}/users")]
+    public async Task<IActionResult> AddUser(Guid roomId, [FromBody] AddUserToRoomDto dto)
     {
-        var ownerId = Guid.Parse(User.FindFirst("nameidentifier")!.Value);
-        var id = await _svc.CreateAsync(ownerId, dto.Title);
-        return Ok(new { id });
+        var ownerId = User.GetUserId();
+        if (!await _uow.Rooms.IsRoomOwnerAsync(roomId, ownerId)) return Forbid();
+
+        await _svc.AddUserAsync(roomId, dto.UserId, dto.AccessLevel);
+        await _uow.CommitAsync();
+        return Ok();
     }
 
-    [HttpGet]
-    public async Task<IActionResult> MyRooms()
+    [HttpGet("{roomId:guid}/users")]
+    public async Task<IActionResult> GetUsers(Guid roomId)
     {
-        var ownerId = Guid.Parse(User.FindFirst("nameidentifier")!.Value);
-        return Ok(await _svc.ListAsync(ownerId));
-    }
-
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
-    {
-        var ownerId = Guid.Parse(User.FindFirst("nameidentifier")!.Value);
-        await _svc.DeleteAsync(id, ownerId);
-        return NoContent();
+        var rus = await _uow.RoomUsers
+            .FindAsync(ru => ru.RoomId == roomId, null, ru => ru.User);
+        var result = rus.Select(ru => new RoomUserDto(ru.UserId, ru.User.Name, ru.AccessLevel));
+        return Ok(result);
     }
 }

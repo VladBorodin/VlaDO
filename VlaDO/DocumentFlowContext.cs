@@ -1,34 +1,53 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using VlaDO.Models;
 
+namespace VlaDO;
+
 public class DocumentFlowContext : DbContext
 {
-    public DbSet<User> Users { get; set; }
-    public DbSet<Room> Rooms { get; set; }
-    public DbSet<Document> Documents { get; set; }
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Room> Rooms => Set<Room>();
+    public DbSet<RoomUser> RoomUsers => Set<RoomUser>();
+    public DbSet<Document> Documents => Set<Document>();
+    public DbSet<DocumentToken> DocumentTokens => Set<DocumentToken>();
 
     public DocumentFlowContext(DbContextOptions<DocumentFlowContext> options)
         : base(options) { }
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder mb)
     {
-        // User → Room (1-N)
-        modelBuilder.Entity<User>()
-            .HasMany(u => u.OwnedRooms)
-            .WithOne(r => r.Owner)
-            .HasForeignKey(r => r.OwnerId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // ───── RoomUser many‑to‑many
+        mb.Entity<RoomUser>()
+          .HasKey(ru => new { ru.RoomId, ru.UserId });
 
-        modelBuilder.Entity<User>()
-            .HasMany(u => u.GuestRooms)
-            .WithMany(r => r.Guests)
-            .UsingEntity(j => j.ToTable("RoomGuests"));
+        mb.Entity<RoomUser>()
+          .HasOne(ru => ru.Room)
+          .WithMany(r => r.Users)
+          .HasForeignKey(ru => ru.RoomId)
+          .OnDelete(DeleteBehavior.Cascade);
 
-        // Room → Document (1-N)
-        modelBuilder.Entity<Room>()
-            .HasMany(r => r.Documents)
-            .WithOne()                     // в Document нет навигации Room
-            .HasForeignKey(d => d.RoomId)
-            .OnDelete(DeleteBehavior.Cascade);
+        mb.Entity<RoomUser>()
+          .HasOne(ru => ru.User)
+          .WithMany(u => u.Rooms)
+          .HasForeignKey(ru => ru.UserId)
+          .OnDelete(DeleteBehavior.Cascade);
+
+        // ───── Room → Document (1‑N)
+        mb.Entity<Room>()
+          .HasMany(r => r.Documents)
+          .WithOne(d => d.Room)
+          .HasForeignKey(d => d.RoomId)
+          .OnDelete(DeleteBehavior.SetNull);
+
+        // ───── DocumentToken
+        mb.Entity<DocumentToken>()
+          .HasIndex(t => t.Token)
+          .IsUnique();
+
+        mb.Entity<DocumentToken>()
+          .HasOne(t => t.Document)
+          .WithMany(d => d.Tokens)
+          .HasForeignKey(t => t.DocumentId)
+          .OnDelete(DeleteBehavior.Cascade);
     }
 }
