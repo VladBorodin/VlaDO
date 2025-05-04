@@ -1,6 +1,4 @@
-﻿using VlaDO.DTOs;
-
-namespace VlaDO.Models
+﻿namespace VlaDO.Models
 {
     public class RoomUser
     {

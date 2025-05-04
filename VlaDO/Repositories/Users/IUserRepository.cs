@@ -1,5 +1,4 @@
-﻿using VlaDO.DTOs;
-using VlaDO.Models;
+﻿using VlaDO.Models;
 
 namespace VlaDO.Repositories
 {

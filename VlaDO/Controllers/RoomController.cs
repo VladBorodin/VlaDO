@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VlaDO.DTOs;
+using VlaDO.Repositories;
 using VlaDO.Services;
 
 namespace VlaDO.Controllers;
