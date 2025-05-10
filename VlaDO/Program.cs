@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using VlaDO;
 using VlaDO.Models;
 using VlaDO.Repositories;
@@ -10,35 +10,31 @@ using VlaDO.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ───────────── Add services
+// ─────────────────────────────────────────────── infrastructure
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ───── БД
+// ───── database  (SQLite; строка в appsettings.json)
 builder.Services.AddDbContext<DocumentFlowContext>(opt =>
-    opt.UseSqlite(builder.Configuration.GetConnectionString("Default")   // "Data Source=VlaDO.db"
-));
+    opt.UseSqlite(builder.Configuration.GetConnectionString("Default"))); // "Data Source=VlaDO.db"
 
-// ───── DI – слой данных
-builder.Services.AddScoped<IGenericRepository<User>, UserRepository>();
-builder.Services.AddScoped<IGenericRepository<Room>, RoomRepository>();   // через Generic
+// ─────────────────────────────────────────────── data layer
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoomRepository, RoomRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-// ───── DI – бизнес‑сервисы
+// ─────────────────────────────────────────────── business layer
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
-builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IShareService, ShareService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
 
-// ───── JWT‑Auth
+// ─────────────────────────────────────────────── JWT authentication
 var jwtKey = builder.Configuration["Jwt:Key"]!;
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
     {
         opt.TokenValidationParameters = new TokenValidationParameters
@@ -53,27 +49,28 @@ builder.Services
         };
     });
 
-// ───── Раздача статических ресурсов (/assets/…)
+// ─────────────────────────────────────────────── static files (ресурсы фронта)
 builder.Services.AddDirectoryBrowser();
 builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
 
 var app = builder.Build();
 
-// ───────────── инициализация БД (EnsureCreated/Seed)
+// ───────── init database (EnsureCreated / seed)
 DatabaseInitializer.EnsureDatabaseCreated(app.Services);
 
-// ───────────── Middleware
+// ───────── middleware pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseStaticFiles();
+app.UseStaticFiles();      // wwwroot / Resources
 app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
 app.Run();

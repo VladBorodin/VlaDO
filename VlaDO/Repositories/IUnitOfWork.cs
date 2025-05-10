@@ -9,6 +9,7 @@ namespace VlaDO.Repositories
         IRoomRepository Rooms { get; }
         IGenericRepository<Document> Documents { get; }
         IGenericRepository<DocumentToken> Tokens { get; }
+        IGenericRepository<RoomUser> RoomUsers { get; }
         Task<int> CommitAsync();
     }
 }

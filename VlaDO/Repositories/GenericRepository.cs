@@ -10,13 +10,13 @@ namespace VlaDO.Repositories
 {
     public class GenericRepository<T> : IGenericRepository<T> where T : class
     {
-        protected readonly DocumentFlowContext _ctx;
+        protected readonly DocumentFlowContext _context;
         private readonly DbSet<T> _set;
 
-        public GenericRepository(DocumentFlowContext ctx)
+        public GenericRepository(DocumentFlowContext context)
         {
-            _ctx = ctx;
-            _set = ctx.Set<T>();
+            _context = context;
+            _set = context.Set<T>();
         }
 
         // ────────── Чтение

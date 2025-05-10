@@ -3,7 +3,7 @@ using VlaDO.Repositories;
 
 namespace VlaDO.Services;
 
-public class RoomService
+public class RoomService : IRoomService
 {
     private readonly IUnitOfWork _uow;
     public RoomService(IUnitOfWork uow) => _uow = uow;

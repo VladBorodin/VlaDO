@@ -3,7 +3,7 @@ using VlaDO.Repositories;
 
 namespace VlaDO.Services
 {
-    public class PermissionService
+    public class PermissionService : IPermissionService
     {
         private readonly IUnitOfWork _uow;
         public PermissionService(IUnitOfWork uow) => _uow = uow;

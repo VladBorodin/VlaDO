@@ -12,39 +12,38 @@ using VlaDO.Repositories;
 
 namespace VlaDO.Services
 {
-    public class AuthService
+    public class AuthService : IAuthService
     {
-        private readonly IUserRepository _userRepository;
+        private readonly IUnitOfWork _uow;
         private readonly IConfiguration _config;
 
-        public AuthService(
-            IUserRepository userRepository,
-            IConfiguration config)
+        public AuthService(IUnitOfWork uow, IConfiguration config)
         {
-            _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+            _uow = uow ?? throw new ArgumentNullException(nameof(uow));
             _config = config ?? throw new ArgumentNullException(nameof(config));
         }
 
-        public async Task<bool> RegisterAsync(RegisterDto dto)
+        public async Task RegisterAsync(RegisterDto dto)
         {
-            var existingUser = await _userRepository.GetByEmailAsync(dto.Email);
-            if (existingUser != null)
+            if (await _uow.Users.GetByEmailAsync(dto.Email) is not null)
                 throw new InvalidOperationException("Email уже зарегистрирован");
 
-            var newUser = new User
+            var user = new User
             {
                 Name = dto.Name,
                 Email = dto.Email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 
-            await _userRepository.AddAsync(newUser);
-            return true;
+            await _uow.Users.AddAsync(user);
+
+            await _uow.CommitAsync();
         }
+
 
         public async Task<string?> LoginAsync(LoginDto dto)
         {
-            var user = await _userRepository.GetByEmailAsync(dto.Email);
+            var user = await _uow.Users.GetByEmailAsync(dto.Email);
             if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
                 return null;
 
