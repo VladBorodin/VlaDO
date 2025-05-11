@@ -1,44 +1,149 @@
-﻿using VlaDO.Models;
+﻿using System.IO.Compression;
+using VlaDO.DTOs;
+using VlaDO.Models;
 using VlaDO.Repositories;
 
-namespace VlaDO.Services
+namespace VlaDO.Services;
+
+public class DocumentService : IDocumentService
 {
-    public class DocumentService : IDocumentService
+    private readonly IUnitOfWork _uow;
+    private readonly IPermissionService _perm;
+
+    private IGenericRepository<Document> Docs => _uow.Documents;
+    private IGenericRepository<Room> Rooms => _uow.Rooms;
+
+    public DocumentService(IUnitOfWork uow, IPermissionService perm)
     {
-        private readonly IGenericRepository<Document> _docRepo;
-        private readonly IGenericRepository<Room> _roomRepo;
+        _uow = uow;
+        _perm = perm;
+    }
 
-        public DocumentService(
-            IGenericRepository<Document> docRepo,
-            IGenericRepository<Room> roomRepo)
+    public async Task<Guid> UploadAsync(Guid roomId, Guid userId, string name, byte[] data)
+    {
+        await EnsureRoomAndAccess(roomId, userId, AccessLevel.Edit);
+
+        var doc = new Document
         {
-            _docRepo = docRepo;
-            _roomRepo = roomRepo;
+            Name = name,
+            Data = data,
+            RoomId = roomId,
+            CreatedBy = userId,
+            Hash = Sha256(data)
+        };
+
+        await Docs.AddAsync(doc);
+        await _uow.CommitAsync();
+        return doc.Id;
+    }
+
+    public Task<IEnumerable<Document>> ListAsync(Guid roomId)
+        => Docs.FindAsync(d => d.RoomId == roomId);
+
+    public Task<Document?> GetAsync(Guid id) => Docs.GetByIdAsync(id);
+
+    public async Task DeleteAsync(Guid id)
+    {
+        await Docs.DeleteAsync(id);
+        await _uow.CommitAsync();
+    }
+
+    public async Task UploadManyAsync(Guid roomId, Guid userId, IEnumerable<IFormFile> files)
+    {
+        foreach (var f in files)
+        {
+            using var ms = new MemoryStream();
+            await f.CopyToAsync(ms);
+            await UploadAsync(roomId, userId, f.FileName, ms.ToArray());
         }
+    }
 
-        public async Task<Guid> UploadAsync(Guid roomId, Guid userId, string name, byte[] data)
+    public async Task<Guid> UpdateAsync(Guid docId, Guid userId, IFormFile newFile, string? note = null)
+    {
+        var parent = await Docs.GetByIdAsync(docId)
+                     ?? throw new KeyNotFoundException("Документ не найден");
+
+        await EnsureRoomAndAccess(parent.RoomId!.Value, userId, AccessLevel.Edit);
+
+        using var ms = new MemoryStream();
+        await newFile.CopyToAsync(ms);
+        var bytes = ms.ToArray();
+
+        var newDoc = new Document
         {
-            if (!(await _roomRepo.ExistsAsync(roomId)))
-                throw new InvalidOperationException("Комната не найдена");
+            Name = newFile.FileName,
+            Data = bytes,
+            Note = note,
+            RoomId = parent.RoomId,
+            CreatedBy = userId,
+            Version = parent.Version + 1,
+            ParentDocId = parent.Id,
+            PrevHash = parent.Hash,
+            Hash = Sha256(bytes)
+        };
 
-            var doc = new Document
+        await Docs.AddAsync(newDoc);
+        await _uow.CommitAsync();
+        return newDoc.Id;
+    }
+
+    public async Task<(byte[] bytes, string fileName, string ctype)> DownloadAsync(Guid docId, Guid userId)
+    {
+        var d = await Docs.GetByIdAsync(docId) ?? throw new KeyNotFoundException();
+        await EnsureRoomAndAccess(d.RoomId!.Value, userId, AccessLevel.Read);
+        return (d.Data!, d.Name, "application/octet-stream");
+    }
+
+    public async Task<(byte[] zip, string fileName)> DownloadManyAsync(IEnumerable<Guid> ids, Guid userId)
+    {
+        var docs = await Docs.FindAsync(d => ids.Contains(d.Id));
+
+        // проверяем доступ
+        foreach (var d in docs)
+            await EnsureRoomAndAccess(d.RoomId!.Value, userId, AccessLevel.Read);
+
+        using var ms = new MemoryStream();
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, true))
+        {
+            foreach (var d in docs)
             {
-                Name = name,
-                Data = data,
-                RoomId = roomId,
-                CreatedBy = userId,
-                Hash = Convert.ToHexString(
-                              System.Security.Cryptography.SHA256.HashData(data))
-            };
-            await _docRepo.AddAsync(doc);
-            return doc.Id;
+                var entry = zip.CreateEntry(d.Name);
+                await using var es = entry.Open();
+                es.Write(d.Data!, 0, d.Data!.Length);
+            }
         }
+        return (ms.ToArray(), "documents.zip");
+    }
 
-        public Task<IEnumerable<Document>> ListAsync(Guid roomId)
-            => _docRepo.FindAsync(d => d.RoomId == roomId);
+    // HELPERS
+    private static string Sha256(byte[] bytes) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
 
-        public Task<Document?> GetAsync(Guid id) => _docRepo.GetByIdAsync(id);
+    private async Task EnsureRoomAndAccess(Guid roomId, Guid userId, AccessLevel level)
+    {
+        if (!await Rooms.ExistsAsync(roomId))
+            throw new KeyNotFoundException("Комната не найдена");
+        if (!await _perm.CheckAccessAsync(userId, roomId, level))
+            throw new UnauthorizedAccessException("Недостаточно прав");
+    }
 
-        public Task DeleteAsync(Guid id) => _docRepo.DeleteAsync(id);
+    public async Task<IEnumerable<DocumentInfoDto>> ListAsync(Guid roomId, Guid userId)
+    {
+        await EnsureRoomAndAccess(roomId, userId, AccessLevel.Read);
+
+        var docs = await Docs.FindAsync(d => d.RoomId == roomId);
+
+        return docs.Select(d => new DocumentInfoDto(d.Id,d.Name,d.Version,
+            d.ParentDocId,d.Hash,d.PrevHash,d.CreatedOn,d.Note
+        ));
+    }
+
+    public async Task DeleteAsync(Guid docId, Guid userId)
+    {
+        var doc = await Docs.GetByIdAsync(docId)
+                  ?? throw new KeyNotFoundException();
+        await EnsureRoomAndAccess(doc.RoomId!.Value, userId, AccessLevel.Manage);
+        await Docs.DeleteAsync(docId);
+        await _uow.CommitAsync();
     }
 }

@@ -32,4 +32,12 @@ public class RoomRepository : GenericRepository<Room>, IRoomRepository
 
     public Task<bool> IsRoomOwnerAsync(Guid roomId, Guid userId) =>
         _context.Rooms.AnyAsync(r => r.Id == roomId && r.OwnerId == userId);
+
+    public Task<IEnumerable<Room>> GetRoomsByOwnerAsync(Guid userId)
+    {
+        return _context.Rooms
+            .Where(r => r.OwnerId == userId)
+            .ToListAsync()
+            .ContinueWith(t => (IEnumerable<Room>)t.Result);
+    }
 }

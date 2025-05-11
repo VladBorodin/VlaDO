@@ -25,7 +25,7 @@ public static class DatabaseInitializer
         catch (Exception ex)
         {
             logger.LogError(ex, "Ошибка при создании базы данных");
-            throw;      // пусть приложение упадёт, чтобы не скрыть проблему
+            throw;
         }
     }
 }

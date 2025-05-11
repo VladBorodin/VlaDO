@@ -14,7 +14,7 @@ namespace VlaDO.Models
         public Guid CreatedBy { get; set; }
         [Required]
         public int Version { get; set; } = 1;
-        public Guid? ParentDoc { get; set; }
+        public Guid? ParentDocId { get; set; }
         public byte[]? Data { get; set; }
         [MaxLength(1024)]
         public string? Note { get; set; }

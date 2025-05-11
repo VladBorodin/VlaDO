@@ -8,5 +8,6 @@ namespace VlaDO.Repositories.Rooms
         Task RemoveUserFromRoomAsync(Guid roomId, Guid userId);
         Task UpdateUserAccessLevelAsync(Guid roomId, Guid userId, AccessLevel newLevel);
         Task<bool> IsRoomOwnerAsync(Guid roomId, Guid userId);
+        Task<IEnumerable<Room>> GetRoomsByOwnerAsync(Guid userId);
     }
 }

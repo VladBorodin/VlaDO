@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using VlaDO;
-using VlaDO.Models;
 using VlaDO.Repositories;
+using VlaDO.Repositories.Documents;
 using VlaDO.Repositories.Rooms;
 using VlaDO.Services;
 
@@ -17,13 +17,14 @@ builder.Services.AddSwaggerGen();
 
 // ───── database  (SQLite; строка в appsettings.json)
 builder.Services.AddDbContext<DocumentFlowContext>(opt =>
-    opt.UseSqlite(builder.Configuration.GetConnectionString("Default"))); // "Data Source=VlaDO.db"
+    opt.UseSqlite(builder.Configuration.GetConnectionString("Default")));
 
 // ─────────────────────────────────────────────── data layer
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoomRepository, RoomRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 
 // ─────────────────────────────────────────────── business layer
 builder.Services.AddScoped<IAuthService, AuthService>();
