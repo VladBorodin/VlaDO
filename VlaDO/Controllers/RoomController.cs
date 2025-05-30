@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using VlaDO.DTOs;
 using VlaDO.Extensions;
+using VlaDO.Models;
 using VlaDO.Repositories;
 using VlaDO.Services;
 
@@ -32,5 +33,11 @@ public class RoomController : ControllerBase
             .FindAsync(ru => ru.RoomId == roomId, null, ru => ru.User);
         var result = rus.Select(ru => new RoomUserDto(ru.UserId, ru.User.Name, ru.AccessLevel));
         return Ok(result);
+    }
+    [HttpGet("recent")]
+    public async Task<IActionResult> Recent([FromQuery] int take = 3)
+    {
+        var list = await _uow.Rooms.GetRecentAsync(User.GetUserId(), take);
+        return Ok(list);
     }
 }

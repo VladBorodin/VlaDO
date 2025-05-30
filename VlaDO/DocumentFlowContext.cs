@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using System.Reflection.Emit;
 using VlaDO.Models;
 
 namespace VlaDO;
@@ -49,5 +50,11 @@ public class DocumentFlowContext : DbContext
           .WithMany(d => d.Tokens)
           .HasForeignKey(t => t.DocumentId)
           .OnDelete(DeleteBehavior.Cascade);
+
+        mb.Entity<Document>()
+            .HasOne(d => d.Room)
+            .WithMany(r => r.Documents)
+            .HasForeignKey(d => d.RoomId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

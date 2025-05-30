@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using VlaDO.DTOs;
 using VlaDO.Models;
 using VlaDO.Repositories.Rooms;
 
@@ -39,5 +40,24 @@ public class RoomRepository : GenericRepository<Room>, IRoomRepository
             .Where(r => r.OwnerId == userId)
             .ToListAsync()
             .ContinueWith(t => (IEnumerable<Room>)t.Result);
+    }
+    public async Task<IEnumerable<RoomBriefDto>> GetRecentAsync(Guid userId, int take = 3)
+    {
+        var query =
+            from d in _context.Documents
+            where d.RoomId != null
+            join ru in _context.RoomUsers
+                 on new { RoomId = d.RoomId!.Value, userId }
+                 equals new { ru.RoomId, userId }
+            group d by d.RoomId into g
+            let last = g.Max(x => x.CreatedOn)
+            orderby last descending
+            select new RoomBriefDto(
+                g.Key!.Value,
+                g.Select(x => x.Room!.Title)
+                 .FirstOrDefault() ?? "(без названия)",
+                last);
+
+        return await query.Take(take).ToListAsync();
     }
 }

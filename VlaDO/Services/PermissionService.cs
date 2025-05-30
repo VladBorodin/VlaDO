@@ -1,4 +1,5 @@
-﻿using VlaDO.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using VlaDO.Models;
 using VlaDO.Repositories;
 
 namespace VlaDO.Services
@@ -36,5 +37,14 @@ namespace VlaDO.Services
             }
             return false;
         }
+        public async Task<bool> CheckRoomAccessAsync(Guid userId, Guid roomId, AccessLevel level)
+        {
+            var ru = (await _uow.RoomUsers.FindAsync(
+                ru => ru.RoomId == roomId && ru.UserId == userId))
+                .FirstOrDefault();
+
+            return ru != null && ru.AccessLevel >= level;
+        }
+
     }
 }

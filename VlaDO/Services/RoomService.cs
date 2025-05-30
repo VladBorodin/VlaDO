@@ -1,4 +1,5 @@
-﻿using VlaDO.Models;
+﻿using VlaDO.DTOs;
+using VlaDO.Models;
 using VlaDO.Repositories;
 
 namespace VlaDO.Services;
@@ -30,4 +31,6 @@ public class RoomService : IRoomService
     {
         await _uow.Rooms.RemoveUserFromRoomAsync(roomId, userId);
     }
+    public Task<IEnumerable<RoomBriefDto>> GetRecentAsync(Guid userId, int take = 3)
+        => _uow.Rooms.GetRecentAsync(userId, take);
 }

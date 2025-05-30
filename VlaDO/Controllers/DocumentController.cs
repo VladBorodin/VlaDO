@@ -46,6 +46,11 @@ public class DocumentController : ControllerBase
     [HttpPost("{docId:guid}/version")]
     public async Task<IActionResult> NewVersion(Guid roomId, Guid docId, IFormFile file)
     {
+        var userId = User.GetUserId();
+        var hasAccess = await _perm.CheckRoomAccessAsync(userId, roomId, AccessLevel.Edit);
+        if (!hasAccess)
+            return Forbid();
+
         var id = await _docs.UpdateAsync(docId, User.GetUserId(), file);
         return Ok(id);
     }
@@ -80,9 +85,8 @@ public class DocumentController : ControllerBase
 
     // ──────── ГЕНЕРАЦИЯ / ОТЗЫВ ТОКЕНА ───────────────────────────
     [HttpPost("{docId:guid}/token")]
-    public async Task<IActionResult> GenerateToken(Guid roomId,
-                                                   Guid docId,
-                                                   [FromBody] GenerateTokenDto dto)
+    public async Task<IActionResult> GenerateToken(Guid roomId, Guid docId,
+        [FromBody] GenerateTokenDto dto)
     {
         // только создатель или Manage-доступ
         if (!await _perm.CheckAccessAsync(User.GetUserId(), roomId, AccessLevel.Manage))

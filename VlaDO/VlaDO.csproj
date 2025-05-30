@@ -29,7 +29,7 @@
     <Folder Include="Controllers\Documents\" />
     <Folder Include="Controllers\Rooms\" />
     <Folder Include="Resources\" />
-    <Folder Include="Seeder\" />
+    <Folder Include="wwwroot\" />
   </ItemGroup>
 
 </Project>

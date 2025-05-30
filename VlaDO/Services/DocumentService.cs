@@ -42,12 +42,6 @@ public class DocumentService : IDocumentService
 
     public Task<Document?> GetAsync(Guid id) => Docs.GetByIdAsync(id);
 
-    public async Task DeleteAsync(Guid id)
-    {
-        await Docs.DeleteAsync(id);
-        await _uow.CommitAsync();
-    }
-
     public async Task UploadManyAsync(Guid roomId, Guid userId, IEnumerable<IFormFile> files)
     {
         foreach (var f in files)

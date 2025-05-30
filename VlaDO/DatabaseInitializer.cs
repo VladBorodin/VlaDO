@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace VlaDO;
@@ -14,17 +16,21 @@ public static class DatabaseInitializer
 
         try
         {
-            if (ctx.Database.EnsureCreated())
-                logger.LogInformation("База данных создана с нуля.");
+            if (!ctx.Database.CanConnect())
+            {
+                logger.LogInformation("База данных не существует или недоступна. Применяется миграция...");
+                ctx.Database.Migrate();
+                logger.LogInformation("Миграции успешно применены");
+            }
             else
-                logger.LogInformation("Схема БД уже существовала – пропуск создания.");
+            {
+                logger.LogInformation("База данных существует. Применяется миграция (если есть)...");
+            }
 
-            // сидеры (Roles, ClientTypes и т.п.)
-            // await SeedDataAsync(ctx, logger);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Ошибка при создании базы данных");
+            logger.LogError(ex, "Ошибка при проверке или миграции базы данных");
             throw;
         }
     }
