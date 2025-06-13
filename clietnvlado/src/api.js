@@ -1,6 +1,5 @@
 import axios from "axios";
 
-// Можно указать полный адрес API, если ты не используешь прокси в vite.config.js
 const api = axios.create({
   baseURL: "/api", // если нужен полный адрес: http://localhost:5223/api
 });
@@ -14,5 +13,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+export async function uploadDocument({ roomId, file, parentDocId, note }) {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (parentDocId) formData.append("parentDocId", parentDocId);
+  if (note) formData.append("note", note);
+
+  const endpoint = roomId ? `/rooms/${roomId}/docs` : `/documents`;
+
+  return api.post(endpoint, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+}
 
 export default api;

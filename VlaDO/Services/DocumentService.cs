@@ -1,7 +1,9 @@
 ﻿using System.IO.Compression;
+using System.Reflection.Emit;
 using VlaDO.DTOs;
 using VlaDO.Models;
 using VlaDO.Repositories;
+using VlaDO.Repositories.Documents;
 
 namespace VlaDO.Services;
 
@@ -9,6 +11,12 @@ public class DocumentService : IDocumentService
 {
     private readonly IUnitOfWork _uow;
     private readonly IPermissionService _perm;
+    private readonly IDocumentRepository _docRepo;
+
+    public DocumentService(IUnitOfWork uow)
+    {
+        _docRepo = uow.DocumentRepository;
+    }
 
     private IGenericRepository<Document> Docs => _uow.Documents;
     private IGenericRepository<Room> Rooms => _uow.Rooms;
@@ -21,7 +29,7 @@ public class DocumentService : IDocumentService
 
     public async Task<Guid> UploadAsync(Guid roomId, Guid userId, string name, byte[] data)
     {
-        await EnsureRoomAndAccess(roomId, userId, AccessLevel.Edit);
+        await _perm.CheckRoomAccessAsync(userId, roomId, AccessLevel.Edit);
 
         var doc = new Document
         {
@@ -136,8 +144,13 @@ public class DocumentService : IDocumentService
     {
         var doc = await Docs.GetByIdAsync(docId)
                   ?? throw new KeyNotFoundException();
-        await EnsureRoomAndAccess(doc.RoomId!.Value, userId, AccessLevel.Manage);
+        await EnsureRoomAndAccess(doc.RoomId!.Value, userId, AccessLevel.Admin);
         await Docs.DeleteAsync(docId);
         await _uow.CommitAsync();
     }
+    public async Task<IEnumerable<Document>> GetByRoomAndUserAsyncExcludeCreator(Guid userId)
+    {
+        return await _docRepo.GetByRoomAndUserAsyncExcludeCreator(userId);
+    }
+
 }

@@ -1,4 +1,5 @@
 ﻿using VlaDO.Models;
+using VlaDO.Repositories.Documents;
 using VlaDO.Repositories.Rooms;
 
 namespace VlaDO.Repositories
@@ -10,6 +11,8 @@ namespace VlaDO.Repositories
         IGenericRepository<Document> Documents { get; }
         IGenericRepository<DocumentToken> Tokens { get; }
         IGenericRepository<RoomUser> RoomUsers { get; }
-        Task<int> CommitAsync();
+        IGenericRepository<PasswordResetToken> PasswordResetTokens { get; }
+        Task<int> CommitAsync(); 
+        IDocumentRepository DocumentRepository { get; }
     }
 }

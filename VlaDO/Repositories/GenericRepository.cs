@@ -58,6 +58,14 @@ namespace VlaDO.Repositories
             var e = await _set.FindAsync(id);
             if (e != null) _set.Remove(e);
         }
+        public async Task<RoomUser?> GetByUserAndRoomAsync(Guid userId, Guid roomId)
+        {
+            return await _context.RoomUsers
+                .FirstOrDefaultAsync(ru => ru.UserId == userId && ru.RoomId == roomId);
+        }
+        public async Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate)
+        {
+            return await _context.Set<T>().FirstOrDefaultAsync(predicate);
+        }
     }
-
 }

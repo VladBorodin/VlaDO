@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using VlaDO.DTOs;
 using VlaDO.Extensions;
 using VlaDO.Models;
+using VlaDO.Repositories;
+using VlaDO.Repositories.Documents;
 using VlaDO.Services;
 
 namespace VlaDO.Controllers;
@@ -13,16 +15,21 @@ public class DocumentController : ControllerBase
 {
     private readonly IDocumentService _docs;
     private readonly IShareService _share;
-    private readonly IPermissionService _perm;
+    private readonly IPermissionService _perm; 
+    private readonly IDocumentRepository _docRepo;
+    private readonly IUnitOfWork _uow;
 
     public DocumentController(
-        IDocumentService docs,
-        IShareService share,
-        IPermissionService perm)
+    IUnitOfWork uow,
+    IDocumentService docService,
+    IPermissionService permissionService,
+    IShareService shareService)
     {
-        _docs = docs;
-        _share = share;
-        _perm = perm;
+        _uow = uow;
+        _docRepo = _uow.DocumentRepository;
+        _docs = docService;
+        _perm = permissionService;
+        _share = shareService;
     }
 
     // ──────── ЗАГРУЗКА ───────────────────────────────────────────
@@ -89,7 +96,7 @@ public class DocumentController : ControllerBase
         [FromBody] GenerateTokenDto dto)
     {
         // только создатель или Manage-доступ
-        if (!await _perm.CheckAccessAsync(User.GetUserId(), roomId, AccessLevel.Manage))
+        if (!await _perm.CheckAccessAsync(User.GetUserId(), roomId, AccessLevel.Admin))
             return Forbid();
 
         var token = await _share.ShareDocumentAsync(docId, dto.AccessLevel,
@@ -116,5 +123,173 @@ public class DocumentController : ControllerBase
             return Forbid();
 
         return File(bytes, ct, name);
+    }
+    [HttpGet("/api/documents")]
+    public async Task<IActionResult> GetDocuments([FromQuery] string? type)
+    {
+        var userId = User.GetUserId();
+        IEnumerable<Document> documents = type switch
+        {
+            "own" => await _docRepo.GetByCreatorAsync(userId),
+            "otherDoc" => await _docRepo.GetOtherAccessibleDocsAsync(userId),
+            "lastupdate" => await _docRepo.GetLatestVersionsForUserAsync(userId),
+            "userDoc" => await _docRepo.GetByCreatorAsync(userId),
+            "all" => await _docRepo.GetAccessibleToUserAsync(userId),
+            _ => await _docRepo.GetAccessibleToUserAsync(userId)
+        };
+
+        var result = new List<DocumentDto>();
+
+        foreach (var doc in documents)
+        {
+            var user = await _uow.Users.GetBriefByIdAsync(doc.CreatedBy);
+
+            RoomBriefDto? roomDto = null;
+            string accessLevel = "Read";
+
+            // ─── Определение доступа ───────────────────────────────
+            if (doc.RoomId is Guid roomId)
+            {
+                var room = doc.Room ?? await _uow.Rooms.GetByIdAsync(roomId);
+                var lastChange = await _docRepo.GetLastChangeInRoomAsync(roomId);
+                roomDto = new RoomBriefDto(room.Id, room.Title, lastChange);
+
+                accessLevel = (await _perm.GetAccessLevelAsync(userId, roomId)).ToString();
+            }
+            else if (doc.CreatedBy == userId)
+            {
+                accessLevel = "Full";
+            }
+            else
+            {
+                var token = await _uow.Tokens.FirstOrDefaultAsync(t => t.DocumentId == doc.Id && t.UserId == userId);
+                if (token != null)
+                    accessLevel = token.AccessLevel.ToString();
+            }
+
+            result.Add(new DocumentDto
+            {
+                Id = doc.Id,
+                Name = doc.Name,
+                Version = doc.Version,
+                CreatedAt = doc.CreatedOn,
+                CreatedBy = user!,
+                Room = roomDto,
+                PreviousVersionId = doc.ParentDocId,
+                AccessLevel = accessLevel
+            });
+        }
+
+        return Ok(result);
+    }
+
+    [HttpGet("/api/documents/{docId}/versions")]
+    public async Task<IActionResult> GetVersions(Guid docId)
+    {
+        var userId = User.GetUserId();
+
+        // 1. Получаем документ, чтобы проверить доступ
+        var doc = await _docRepo.GetByIdAsync(docId);
+        if (doc == null)
+            return NotFound();
+
+        // 2. Проверка доступа
+        if (doc.RoomId != null)
+        {
+            var hasAccess = await _perm.CheckAccessAsync(userId, doc.RoomId.Value, AccessLevel.Read);
+            if (!hasAccess)
+                return Forbid();
+        }
+        else if (doc.CreatedBy != userId)
+        {
+            return Forbid();
+        }
+
+        // 3. Получаем цепочку версий
+        var versions = await _docRepo.GetVersionChainAsync(docId);
+
+        var dtoList = versions.Select(d => new DocumentInfoDto(
+            d.Id,
+            d.Name,
+            d.Version,
+            d.ParentDocId,
+            d.Hash,
+            d.PrevHash,
+            d.CreatedOn,
+            d.Note
+        ));
+
+        return Ok(dtoList);
+    }
+    [HttpPost("create")]
+    public async Task<IActionResult> CreateDocument([FromForm] CreateDocumentDto dto)
+    {
+        var userId = User.GetUserId();
+
+        var newDoc = new Document
+        {
+            Name = dto.Name,
+            CreatedBy = userId,
+            CreatedOn = DateTime.UtcNow,
+            Note = dto.Note,
+            RoomId = dto.RoomId,
+            Version = 1 // потом можем апдейтить
+        };
+
+        if (dto.File != null)
+        {
+            using var ms = new MemoryStream();
+            await dto.File.CopyToAsync(ms);
+            newDoc.Data = ms.ToArray();
+            newDoc.Hash = ComputeHash(newDoc.Data); // метод, считающий SHA256 или MD5
+        }
+
+        await _uow.Documents.AddAsync(newDoc);
+        await _uow.CommitAsync();
+
+        return Ok(newDoc.Id);
+    }
+    private static string ComputeHash(byte[] data)
+    {
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var hash = sha.ComputeHash(data);
+        return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+    }
+    [HttpPut("/api/documents/{docId}")]
+    public async Task<IActionResult> UpdateDocument(Guid docId, [FromForm] UpdateDocumentDto dto)
+    {
+        var userId = User.GetUserId();
+
+        var doc = await _docRepo.GetByIdAsync(docId);
+        if (doc == null)
+            return NotFound();
+
+        if (doc.RoomId != null)
+        {
+            var hasAccess = await _perm.CheckAccessAsync(userId, doc.RoomId.Value, AccessLevel.Edit);
+            if (!hasAccess) return Forbid();
+        }
+        else if (doc.CreatedBy != userId)
+        {
+            return Forbid();
+        }
+
+        if (dto.Name != null) doc.Name = dto.Name;
+        if (dto.Note != null) doc.Note = dto.Note;
+        if (dto.RoomId != null) doc.RoomId = dto.RoomId;
+        if (dto.ParentDocId != null) doc.ParentDocId = dto.ParentDocId;
+
+        if (dto.File != null)
+        {
+            using var ms = new MemoryStream();
+            await dto.File.CopyToAsync(ms);
+            doc.Data = ms.ToArray();
+            doc.PrevHash = doc.Hash;
+            doc.Hash = ComputeHash(doc.Data);
+            doc.Version += 1;
+        }
+
+        await _uow.CommitAsync();
+        return Ok(doc.Id);
     }
 }

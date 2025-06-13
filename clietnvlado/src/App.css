@@ -40,3 +40,140 @@
 .read-the-docs {
   color: #888;
 }
+
+body {
+  background-color: #f8f9fa;
+}
+
+body.dark {
+  background-color: #121212 !important;
+  color: #f1f1f1 !important;
+}
+body.light {
+  background-color: #f8f9fa !important;
+  color: #212529 !important;
+}
+
+.dark-placeholder::placeholder {
+  color: #bbb !important;
+}
+
+.dark-label > label {
+  color: #ccc !important;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
+body.light {
+  background-color: #f8f9fa;
+  color: #212529;
+}
+
+body.dark {
+  background-color: #121212;
+  color: #eee;
+}
+
+body.dark .card {
+  background-color: #1e1e1e;
+  border-color: #333;
+  color: #eee;
+}
+
+body.dark .card-header {
+  background-color: #2a2a2a;
+  color: #eee;
+}
+
+body.dark .form-control {
+  background-color: #2c2c2c;
+  color: #eee;
+  border: 1px solid #444;
+}
+
+body.dark .form-control::placeholder {
+  color: #aaa;
+}
+
+body.dark .form-floating > label {
+  color: #ccc;
+}
+/* App.css */
+.theme-toggle-btn {
+  background: transparent;
+  border: 1px solid #ccc;
+  color: #ccc;
+}
+
+body.dark .theme-toggle-btn {
+  border-color: #666;
+  color: #eee;
+}
+
+.theme-toggle-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.drop-zone {
+  background-color: #f1f1f1;
+  color: #444;
+  transition: background-color 0.3s ease;
+}
+
+.drop-zone.active {
+  background-color: #e0e0e0;
+  border: 2px dashed #999;
+}
+
+body.dark .drop-zone {
+  background-color: #2a2a2a;
+  color: #ccc;
+  border: 1px dashed #555;
+}
+
+body.dark .drop-zone.active {
+  background-color: #333;
+  border: 2px dashed #999;
+}
+body.dark select.form-select {
+  background-color: #2a2a2a;
+  color: #eee;
+  border-color: #444;
+}
+
+body.dark select.form-select option {
+  background-color: #2a2a2a;
+  color: #eee;
+}
+.drop-zone {
+  background-color: #f1f1f1;
+  color: #444;
+  border: 1px dashed #bbb;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.drop-zone.active {
+  background-color: #e6e6e6;
+  border-color: #999;
+}
+
+body.dark .drop-zone {
+  background-color: #2a2a2a;
+  color: #eee;
+  border-color: #555;
+}
+
+body.dark .drop-zone.active {
+  background-color: #333;
+  border-color: #999;
+}
+.drop-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+}

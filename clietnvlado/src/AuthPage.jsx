@@ -1,40 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
-import logo from "/logo.png";
+import { FaSun, FaMoon } from "react-icons/fa";
 
-export default function AuthPage({ onLogin }) {   // ← принимаем проп!
+export default function AuthPage({ onLogin }) {
   const [activeTab, setActiveTab] = useState("login");
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("theme") || "light"
-  );
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+  useEffect(() => {
+    document.body.className = theme === "dark" 
+      ? "bg-dark text-light" 
+      : "bg-light text-dark";
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
-  // Смена темы
-  const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
-    setTheme(next);
-    localStorage.setItem("theme", next);
-    document.body.className = next === "dark" ? "bg-dark text-light" : "bg-light text-dark";
-  };
-
-  // Сбросить классы при монтировании (нужно один раз)
-  useState(() => {
-    document.body.className = theme === "dark"
-        ? "bg-dark text-light"
-        : "bg-light text-dark";
-  }, []);
+  const cardBgClass = theme === "dark"
+    ? "bg-dark bg-gradient text-light"
+    : "bg-white text-dark";
 
   return (
-    <div className="container min-vh-100 d-flex flex-column justify-content-center align-items-center">
-      <div className="mb-4 text-center">
-        <img src="/logo.png" alt="VlaDO" height={80} className="mb-2" />
-        <h2 className="fw-bold">Добро пожаловать в VlaDO</h2>
-        <button className="btn btn-outline-secondary btn-sm mt-2" onClick={toggleTheme}>
-          {theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-        </button>
-      </div>
-      <div className="card shadow rounded" style={{ minWidth: 340, maxWidth: 370 }}>
-        <div className="card-header d-flex justify-content-center bg-transparent">
+    <div className="d-flex flex-column align-items-center justify-content-center min-vh-100 p-3">
+      <img src="/logo-small.png" alt="Logo" height={80} className="mb-4" />
+
+      <div className={`card shadow ${cardBgClass}`} style={{ minWidth: 340, maxWidth: 380 }}>
+        <div className="card-header bg-transparent d-flex justify-content-between">
           <ul className="nav nav-tabs card-header-tabs">
             <li className="nav-item">
               <button
@@ -42,7 +30,7 @@ export default function AuthPage({ onLogin }) {   // ← принимаем пр
                 onClick={() => setActiveTab("login")}
                 type="button"
               >
-                Войти
+                Вход
               </button>
             </li>
             <li className="nav-item">
@@ -55,13 +43,25 @@ export default function AuthPage({ onLogin }) {   // ← принимаем пр
               </button>
             </li>
           </ul>
+          <button
+            className="btn btn-link"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            title="Переключить тему"
+          >
+            {theme === "dark" ? <FaSun size={20}/> : <FaMoon size={20}/>}
+          </button>
         </div>
+
         <div className="card-body">
           {activeTab === "login"
-            ? <LoginForm theme={theme} onLogin={onLogin} />
-            : <RegisterForm theme={theme} />}
+            ? <LoginForm theme={theme} onLogin={onLogin}/>
+            : <RegisterForm theme={theme} onLogin={onLogin}/>}
         </div>
       </div>
+
+      <footer className={`mt-4 text-center w-100 ${theme === "dark" ? "text-secondary" : "text-muted"}`}>
+        &copy; {new Date().getFullYear()} VlaDO. Все права защищены.
+      </footer>
     </div>
   );
 }

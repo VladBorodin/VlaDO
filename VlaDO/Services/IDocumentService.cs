@@ -11,6 +11,7 @@ namespace VlaDO.Services
         Task<(byte[] bytes, string fileName, string ctype)> DownloadAsync(Guid docId, Guid userId);
         Task<(byte[] zip, string fileName)> DownloadManyAsync(IEnumerable<Guid> ids, Guid userId);
         Task<IEnumerable<DocumentInfoDto>> ListAsync(Guid roomId, Guid userId);
-        Task DeleteAsync(Guid docId, Guid userId);
+        Task DeleteAsync(Guid docId, Guid userId); 
+        Task<IEnumerable<Document>> GetByRoomAndUserAsyncExcludeCreator(Guid userId);
     }
 }

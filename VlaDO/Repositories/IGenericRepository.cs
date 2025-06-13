@@ -1,4 +1,5 @@
 ﻿using System.Linq.Expressions;
+using VlaDO.Models;
 
 namespace VlaDO.Repositories
 {
@@ -17,5 +18,6 @@ namespace VlaDO.Repositories
         Task UpdateAsync(T entity);
         Task UpdateRangeAsync(IEnumerable<T> entities);
         Task DeleteAsync(Guid id);
+        Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate);
     }
 }

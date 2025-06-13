@@ -15,5 +15,7 @@ namespace VlaDO.Repositories.Rooms
         /// и к которым <paramref name="userId"/> имеет доступ.
         /// </summary>
         Task<IEnumerable<RoomBriefDto>> GetRecentAsync(Guid userId, int take = 3);
+        Task<IEnumerable<RoomBriefDto>> SearchRoomsAsync(Guid userId, string? title = null, Guid? roomId = null, DateTime? since = null);
+        Task<IEnumerable<Room>> GetByUserAsync(Guid userId);
     }
 }

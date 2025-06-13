@@ -56,5 +56,14 @@ public class DocumentFlowContext : DbContext
             .WithMany(r => r.Documents)
             .HasForeignKey(d => d.RoomId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        mb.Entity<PasswordResetToken>()
+            .HasIndex(t => t.Token)
+            .IsUnique();
+
+        mb.Entity<PasswordResetToken>()
+            .Property(t => t.ExpiresAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
     }
 }

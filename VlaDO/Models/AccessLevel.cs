@@ -6,6 +6,6 @@ namespace VlaDO.Models
     {
         Read = 0,
         Edit = 1,
-        Manage = 2
+        Admin = 2
     }
 }

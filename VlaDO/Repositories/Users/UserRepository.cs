@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using VlaDO.DTOs;
 using VlaDO.Models;
 
 namespace VlaDO.Repositories;
@@ -43,5 +44,12 @@ public class UserRepository : GenericRepository<User>, IUserRepository
             .ToListAsync();
 
         return roomDocs.Union(tokenDocs).Distinct();
+    }
+    public async Task<UserBriefDto?> GetBriefByIdAsync(Guid userId)
+    {
+        return await _context.Users
+            .Where(u => u.Id == userId)
+            .Select(u => new UserBriefDto(u.Id, u.Name))
+            .FirstOrDefaultAsync();
     }
 }

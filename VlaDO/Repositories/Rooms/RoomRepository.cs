@@ -60,4 +60,38 @@ public class RoomRepository : GenericRepository<Room>, IRoomRepository
 
         return await query.Take(take).ToListAsync();
     }
+    public async Task<IEnumerable<RoomBriefDto>> SearchRoomsAsync(Guid userId, string? title = null, Guid? roomId = null, DateTime? since = null)
+    {
+        var query = _context.Rooms
+            .Where(r => r.OwnerId == userId);
+
+        if (!string.IsNullOrWhiteSpace(title))
+            query = query.Where(r => r.Title!.Contains(title));
+
+        if (roomId.HasValue)
+            query = query.Where(r => r.Id == roomId.Value);
+
+        if (since.HasValue)
+        {
+            query = query.Where(r => _context.Documents
+                .Any(d => d.RoomId == r.Id && d.CreatedOn >= since.Value));
+        }
+
+        var result = await query.ToListAsync();
+
+        return result.Select(r => new RoomBriefDto(
+            r.Id,
+            r.Title ?? "(без названия)",
+            null
+        ));
+    }
+    public async Task<IEnumerable<Room>> GetByUserAsync(Guid userId)
+    {
+        return await _context.RoomUsers
+            .Where(ru => ru.UserId == userId)
+            .Select(ru => ru.Room)
+            .Distinct()
+            .ToListAsync();
+    }
+
 }

@@ -1,4 +1,5 @@
-﻿using VlaDO.Models;
+﻿using VlaDO.DTOs;
+using VlaDO.Models;
 
 namespace VlaDO.Repositories
 {
@@ -8,5 +9,6 @@ namespace VlaDO.Repositories
         Task<IEnumerable<Room>> GetRoomsWithAccessAsync(Guid userId, AccessLevel level);
         Task<bool> IsRoomOwnerAsync(Guid roomId, Guid userId);
         Task<IEnumerable<Document>> GetAccessibleDocumentsAsync(Guid userId);
+        Task<UserBriefDto?> GetBriefByIdAsync(Guid userId);
     }
 }
