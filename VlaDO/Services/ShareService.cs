@@ -1,4 +1,5 @@
-﻿using VlaDO.Models;
+﻿using VlaDO.DTOs;
+using VlaDO.Models;
 using VlaDO.Repositories;
 
 namespace VlaDO.Services;
@@ -59,5 +60,61 @@ public class ShareService : IShareService
             "application/octet-stream",
             doc.RoomId ?? throw new InvalidOperationException("Документ не привязан к комнате")
         );
+    }
+
+    // ───────── «шары» между пользователями ─────────
+    public async Task<DocumentShareDto[]> GetSharesAsync(Guid docId)
+    {
+        var list = await _uow.Tokens
+            .FindAsync(t => t.DocumentId == docId && t.UserId != Guid.Empty,
+                       null, t => t.Document);
+
+        // подгружаем имена пользователей одним запросом
+        var uids = list.Select(t => t.UserId).Distinct().ToList();
+        var users = await _uow.Users
+            .FindAsync(u => uids.Contains(u.Id));
+
+        return list.Select(t => new DocumentShareDto(
+                t.Id,
+                t.UserId,
+                users.First(u => u.Id == t.UserId).Name,
+                t.AccessLevel))
+            .ToArray();
+    }
+
+    public async Task<DocumentShareDto> UpsertShareAsync(
+        Guid docId, Guid userId, AccessLevel level)
+    {
+        var tok = await _uow.Tokens
+            .FirstOrDefaultAsync(t => t.DocumentId == docId &&
+                                      t.UserId == userId);
+
+        if (tok is null)
+        {
+            tok = new DocumentToken
+            {
+                DocumentId = docId,
+                UserId = userId,
+                Token = Guid.NewGuid().ToString("N"),
+                AccessLevel = level,
+                ExpiresAt = DateTime.UtcNow.AddYears(5)
+            };
+            await _uow.Tokens.AddAsync(tok);
+        }
+        else
+        {
+            tok.AccessLevel = level;
+        }
+
+        await _uow.CommitAsync();
+
+        var user = await _uow.Users.GetByIdAsync(userId);
+        return new DocumentShareDto(tok.Id, userId, user!.Name, level);
+    }
+
+    public async Task RevokeShareAsync(Guid tokenId)
+    {
+        await _uow.Tokens.DeleteAsync(tokenId);
+        await _uow.CommitAsync();
     }
 }

@@ -10,5 +10,6 @@ namespace VlaDO.Repositories
         Task<bool> IsRoomOwnerAsync(Guid roomId, Guid userId);
         Task<IEnumerable<Document>> GetAccessibleDocumentsAsync(Guid userId);
         Task<UserBriefDto?> GetBriefByIdAsync(Guid userId);
+        Task<User?> GetByNameAsync(string name);
     }
 }

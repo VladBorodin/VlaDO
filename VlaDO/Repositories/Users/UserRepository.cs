@@ -29,22 +29,21 @@ public class UserRepository : GenericRepository<User>, IUserRepository
     // ───────── 4. Все документы, к которым у пользователя есть доступ
     public async Task<IEnumerable<Document>> GetAccessibleDocumentsAsync(Guid userId)
     {
-        // a) документы из комнат, где пользователь член
         var roomDocs = await _context.RoomUsers
             .Where(ru => ru.UserId == userId && ru.AccessLevel >= AccessLevel.Read)
             .SelectMany(ru => ru.Room.Documents)
             .ToListAsync();
 
-        // b) документы, расшаренные пользователю по токену (если нужно)
         var tokenDocs = await _context.DocumentTokens
             .Where(dt => dt.ExpiresAt > DateTime.UtcNow &&
                          dt.AccessLevel >= AccessLevel.Read &&
-                         dt.Document.CreatedBy == userId)   // или другая логика
+                         dt.Document.CreatedBy == userId)
             .Select(dt => dt.Document)
             .ToListAsync();
 
         return roomDocs.Union(tokenDocs).Distinct();
     }
+
     public async Task<UserBriefDto?> GetBriefByIdAsync(Guid userId)
     {
         return await _context.Users
@@ -52,4 +51,8 @@ public class UserRepository : GenericRepository<User>, IUserRepository
             .Select(u => new UserBriefDto(u.Id, u.Name))
             .FirstOrDefaultAsync();
     }
+
+    public Task<User?> GetByNameAsync(string name) =>
+        _context.Users.FirstOrDefaultAsync(u =>
+            u.Name.ToLower() == name.Trim().ToLower());
 }

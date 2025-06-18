@@ -11,6 +11,7 @@ import DocumentsPage from "./DocumentsPage";
 import CreateRoomPage from "./CreateRoomPage";
 import RoomPage from "./RoomPage";
 import CreateDocumentPage from './CreateDocumentPage';
+import UpdateDocumentPage from "./UpdateDocumentPage";
 
 export default function App() {
   const [token, setToken] = useState(() =>
@@ -36,6 +37,7 @@ export default function App() {
               : <AuthPage onLogin={handleLogin}/>
           }
         />
+
         <Route
           path="/"
           element={
@@ -46,6 +48,7 @@ export default function App() {
             )
           }
         />
+
         <Route
           path="/documents"
           element={
@@ -54,27 +57,38 @@ export default function App() {
               : <Navigate to="/login" replace/>
           }
         />
+
         <Route
           path="/rooms/create"
           element={
             token ? <CreateRoomPage /> : <Navigate to="/login" replace />
           }
         />
+
+        <Route 
+          path="/documents/:parentId/update" 
+            element={<UpdateDocumentPage />} 
+        />
+
         <Route
           path="/rooms/:id"
           element={token ? <RoomPage /> : <Navigate to="/login" replace />}
         />
+
         <Route
           path="/forgot-password"
           element={token ? <Navigate to="/" replace/> : <ForgotPasswordPage />}
         />
+
         <Route
           path="/reset-password"
           element={<ResetPassword />}
         />
+
         <Route path="/documents/create" element={token ? <CreateDocumentPage /> : <Navigate to="/login" />} />
+
         <Route path="/403" element={<Forbidden />} />
-        {/* Любой другой путь */}
+        
         <Route path="*" element={<NotFound />} />
       </Routes>
   );

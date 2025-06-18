@@ -9,22 +9,18 @@ public class PermissionService : IPermissionService
     private readonly IUnitOfWork _uow;
     public PermissionService(IUnitOfWork u) => _uow = u;
 
-    // ────────────────────────────────────────── ДОКУМЕНТ
     public async Task<bool> CheckAccessAsync(
     Guid userId, Guid docId, AccessLevel required, string? token = null)
     {
         var doc = await _uow.Documents.GetByIdAsync(docId, d => d.Room);
         if (doc == null) return false;
 
-        // ① Создатель документа
         if (doc.CreatedBy == userId)
             return true;
 
-        // ② Владелец комнаты
         if (doc.Room?.OwnerId == userId)
             return true;
 
-        // ③ Участник комнаты
         if (doc.RoomId is Guid roomId)
         {
             var ru = (await _uow.RoomUsers
@@ -35,7 +31,6 @@ public class PermissionService : IPermissionService
                 return true;
         }
 
-        // ④ Токен доступа
         if (!string.IsNullOrWhiteSpace(token))
         {
             var dt = (await _uow.Tokens
@@ -49,23 +44,25 @@ public class PermissionService : IPermissionService
         return false;
     }
 
-    // ────────────────────────────────────────── КОМНАТА
     public async Task<bool> CheckRoomAccessAsync(Guid userId, Guid roomId, AccessLevel level)
     {
         var room = await _uow.Rooms.GetByIdAsync(roomId);
         if (room?.OwnerId == userId) return true;
 
-        var ru = (await _uow.RoomUsers
-                     .FindAsync(r => r.RoomId == roomId && r.UserId == userId))
-                 .FirstOrDefault();                       // ← обычный LINQ
+        var ru = await _uow.RoomUsers
+            .FirstOrDefaultAsync(r => r.RoomId == roomId && r.UserId == userId);
 
         return ru != null && ru.AccessLevel >= level;
     }
     public async Task<AccessLevel> GetAccessLevelAsync(Guid userId, Guid roomId)
     {
-        var roomUser = await _uow.RoomUsers.FirstOrDefaultAsync(
-            ru => ru.UserId == userId && ru.RoomId == roomId);
+        var room = await _uow.Rooms.GetByIdAsync(roomId);
+        if (room?.OwnerId == userId)
+            return AccessLevel.Full;
 
-        return roomUser?.AccessLevel ?? AccessLevel.Read;
+        var ru = await _uow.RoomUsers
+                .FirstOrDefaultAsync(r => r.UserId == userId && r.RoomId == roomId);
+
+        return ru?.AccessLevel ?? AccessLevel.Read;
     }
 }

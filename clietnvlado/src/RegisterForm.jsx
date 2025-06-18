@@ -1,18 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "./api";
 import { FaSpinner } from "react-icons/fa";
+import debounce from "./utils/debounce";
+import { useAlert } from "./contexts/AlertContext"
 
 export default function RegisterForm({ theme, onLogin }) {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
+  const [nameOk , setNameOk] = useState(true);
+  const [checking , setChecking] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { push } = useAlert();
 
   function validate() {
     if (!email.includes("@")) return "Некорректный email";
     if (username.length < 3) return "Имя не менее 3 символов";
+    if (!nameOk) return "Имя уже занято"
     if (password.length < 6) return "Пароль не менее 6 символов";
     if (password !== confirm) return "Пароли не совпадают";
     return null;
@@ -34,20 +40,34 @@ export default function RegisterForm({ theme, onLogin }) {
         password,
         confirmPassword: confirm
       });
-      // если бэкенд сразу возвращает token
       if (data.token) {
         sessionStorage.setItem("token", data.token);
         onLogin(data.token);
         return;
       }
-      // иначе — перенаправляем на вкладку логина
       setLoading(false);
-      alert("Регистрация прошла успешно! Войдите в систему.");
-    } catch {
-      setError("Ошибка при регистрации. Попробуйте ещё раз.");
+      push("Регистрация прошла успешно! Войдите в систему.", "success");
+    } catch (err) {
+      if (err.response?.status === 409)
+        setError(err.response.data);
+      else
+        setError("Ошибка сети или сервера.");
       setLoading(false);
     }
   };
+
+  const checkName = useCallback(
+    debounce(async (name) => {
+      if (name.trim().length < 3) return setNameOk(true);
+      setChecking(true);
+      try {
+        const { data } = await api.get("/users/name-exists",
+                                      { params:{ name }});
+        setNameOk(!data.exists);
+      } finally { setChecking(false); }
+    }, 350),
+    []
+  );
 
   return (
     <form onSubmit={handleRegister} autoComplete="off">
@@ -112,8 +132,11 @@ export default function RegisterForm({ theme, onLogin }) {
       </div>
 
       {error && <div className="alert alert-danger py-2">{error}</div>}
+      {!nameOk && !error && (
+        <div className="alert alert-warning py-2">Имя уже занято</div>
+      )}
 
-      <button className="btn btn-success w-100" disabled={loading}>
+      <button className="btn btn-success w-100" disabled={loading || !nameOk}>
         {loading && <FaSpinner className="me-2 spin" />}
         Зарегистрироваться
       </button>

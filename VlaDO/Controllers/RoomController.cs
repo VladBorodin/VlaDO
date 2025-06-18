@@ -59,7 +59,7 @@ public class RoomController : ControllerBase
         {
             RoomId = room.Id,
             UserId = userId,
-            AccessLevel = AccessLevel.Admin
+            AccessLevel = AccessLevel.Full
         };
         await _uow.RoomUsers.AddAsync(ownerRecord);
 
@@ -72,11 +72,17 @@ public class RoomController : ControllerBase
     {
         var userId = User.GetUserId();
         var rooms = await _uow.Rooms.GetByUserAsync(userId);
+        var roomIds = rooms.Select(r => r.Id).ToList();
 
-        var dto = rooms.Select(r => new RoomBriefDto(
+        var accessDict = await _uow.RoomUsers.FindAsync(ru => ru.UserId == userId && roomIds.Contains(ru.RoomId));
+
+        var accessByRoom = accessDict.ToDictionary(ru => ru.RoomId, ru => ru.AccessLevel.ToString());
+
+        var dto = rooms.Select(r => new RoomWithAccessDto(
             r.Id,
             r.Title,
-            null
+            null,
+            accessByRoom.TryGetValue(r.Id, out var level) ? level : "Read"
         ));
 
         return Ok(dto);

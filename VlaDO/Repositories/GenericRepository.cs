@@ -34,13 +34,11 @@ namespace VlaDO.Repositories
            .Take(size)
            .ToListAsync();
 
-        public async Task<IEnumerable<T>> FindAsync(
-            Expression<Func<T, bool>> pred,
-            Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
-            params Expression<Func<T, object>>[] inc)
+        public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> pred, Func<IQueryable<T>,
+            IOrderedQueryable<T>>? orderBy = null, params Expression<Func<T, object>>[] include)
         {
             IQueryable<T> q = _set;
-            q = inc.Aggregate(q, (cur, i) => cur.Include(i));
+            q = include.Aggregate(q, (cur, i) => cur.Include(i));
             q = q.Where(pred);
             if (orderBy != null) q = orderBy(q);
             return await q.ToListAsync();
@@ -67,5 +65,10 @@ namespace VlaDO.Repositories
         {
             return await _context.Set<T>().FirstOrDefaultAsync(predicate);
         }
+        public async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate)
+        {
+            return await _set.AnyAsync(predicate);
+        }
+
     }
 }

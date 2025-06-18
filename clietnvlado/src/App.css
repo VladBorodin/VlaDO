@@ -171,9 +171,79 @@ body.dark .drop-zone.active {
   background-color: #333;
   border-color: #999;
 }
+
 .drop-zone {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 80px;
+}
+
+body.bg-dark .nav-tabs .nav-link.active {
+  background:#1e1e1e;
+  color:#f8f9fa;
+  border-color:#555 #555 #1e1e1e;
+}
+
+body.bg-dark .table-dark thead th,
+body.bg-dark .table-dark tbody td{
+  background:#2b2b2b;
+  color:#f8f9fa;
+  border-color:#444;
+}
+
+body.bg-dark .table-dark tbody tr:hover{
+  background:#343a40;
+}
+
+body.dark .text-muted,
+body.bg-dark .text-muted {
+  color:#adb5bd !important;
+}
+
+body.dark .modal-content {
+  background-color:#1e1e1e;
+  color:#f8f9fa;
+  border:1px solid #444;
+}
+
+body.dark .modal-header,
+body.dark .modal-footer {
+  background-color:#232323;
+  border-color:#333;
+}
+
+body.dark .btn-close {
+  filter: invert(1);
+}
+
+body.dark .list-group-item {
+  background-color:#2a2a2a;
+  color:#f8f9fa;
+  border-color:#444;
+}
+
+body.dark .list-group-item:hover,
+body.dark .list-group-item:focus {
+  background-color:#383838;
+  color:#fff;
+}
+
+body.dark .form-control::placeholder,
+body.dark .text-muted         { color:#adb5bd !important; }
+
+.app-alert {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1080;              /* выше модалок */
+  min-width: 260px;
+  box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15);
+}
+
+body.dark .app-alert.alert-success   { background:#1E4020; border-color:#2d6a2e; color:#d4ffd6; }
+body.dark .app-alert.alert-danger    { background:#402020; border-color:#6a2d2d; color:#ffd6d6; }
+
+body.dark .app-alert .btn-close {
+  filter: invert(1) grayscale(100%) contrast(200%);
 }

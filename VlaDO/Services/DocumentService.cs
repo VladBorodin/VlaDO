@@ -60,12 +60,12 @@ public class DocumentService : IDocumentService
         }
     }
 
-    public async Task<Guid> UpdateAsync(Guid docId, Guid userId, IFormFile newFile, string? note = null)
+    public async Task<Guid> UpdateAsync(Guid roomId, Guid docId, Guid userId, IFormFile newFile, string? note = null)
     {
         var parent = await Docs.GetByIdAsync(docId)
                      ?? throw new KeyNotFoundException("Документ не найден");
 
-        await EnsureRoomAndAccess(parent.RoomId!.Value, userId, AccessLevel.Edit);
+        await EnsureRoomAndAccess(roomId, userId, AccessLevel.Edit);
 
         using var ms = new MemoryStream();
         await newFile.CopyToAsync(ms);
@@ -76,7 +76,7 @@ public class DocumentService : IDocumentService
             Name = newFile.FileName,
             Data = bytes,
             Note = note,
-            RoomId = parent.RoomId,
+            RoomId = roomId,
             CreatedBy = userId,
             Version = parent.Version + 1,
             ParentDocId = parent.Id,
@@ -125,7 +125,7 @@ public class DocumentService : IDocumentService
     {
         if (!await Rooms.ExistsAsync(roomId))
             throw new KeyNotFoundException("Комната не найдена");
-        if (!await _perm.CheckAccessAsync(userId, roomId, level))
+        if (!await _perm.CheckRoomAccessAsync(userId, roomId, level))
             throw new UnauthorizedAccessException("Недостаточно прав");
     }
 
@@ -144,7 +144,7 @@ public class DocumentService : IDocumentService
     {
         var doc = await Docs.GetByIdAsync(docId)
                   ?? throw new KeyNotFoundException();
-        await EnsureRoomAndAccess(doc.RoomId!.Value, userId, AccessLevel.Admin);
+        await EnsureRoomAndAccess(doc.RoomId!.Value, userId, AccessLevel.Full);
         await Docs.DeleteAsync(docId);
         await _uow.CommitAsync();
     }

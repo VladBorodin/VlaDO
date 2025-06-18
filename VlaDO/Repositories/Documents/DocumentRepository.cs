@@ -135,13 +135,23 @@ namespace VlaDO.Repositories
         }
         public async Task<IEnumerable<Document>> GetLatestVersionsForUserAsync(Guid userId)
         {
-            var accessibleDocs = await GetAccessibleToUserAsync(userId);
+            var docs = await GetAccessibleToUserAsync(userId);
 
-            var latest = accessibleDocs
-                .GroupBy(d => d.ParentDocId ?? d.Id)
+            var latest = docs
+                .GroupBy(d => GetChainRootHash(d, docs))
                 .Select(g => g.OrderByDescending(x => x.Version).First());
 
             return latest.ToList();
+        }
+        private static string GetChainRootHash(Document d, IEnumerable<Document> pool)
+        {
+            var current = d;
+            while (true)
+            {
+                var parent = pool.FirstOrDefault(x => x.Id == current.ParentDocId);
+                if (parent == null) return current.Hash;
+                current = parent;
+            }
         }
     }
 }

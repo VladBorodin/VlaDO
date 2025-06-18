@@ -17,6 +17,7 @@ public class DocumentFlowContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
+        mb.Entity<UserContact>().HasKey(c => new { c.UserId, c.ContactId });
         // ───── RoomUser many‑to‑many
         mb.Entity<RoomUser>()
           .HasKey(ru => new { ru.RoomId, ru.UserId });
@@ -46,9 +47,9 @@ public class DocumentFlowContext : DbContext
           .IsUnique();
 
         mb.Entity<DocumentToken>()
-          .HasOne(t => t.Document)
-          .WithMany(d => d.Tokens)
-          .HasForeignKey(t => t.DocumentId)
+          .HasOne(dt => dt.User)
+          .WithMany()
+          .HasForeignKey(dt => dt.UserId)
           .OnDelete(DeleteBehavior.Cascade);
 
         mb.Entity<Document>()
@@ -64,6 +65,18 @@ public class DocumentFlowContext : DbContext
         mb.Entity<PasswordResetToken>()
             .Property(t => t.ExpiresAt)
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+        mb.Entity<UserContact>()
+            .HasOne(c => c.User)
+            .WithMany(u => u.Contacts)
+            .HasForeignKey(c => c.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        mb.Entity<UserContact>()
+            .HasOne(c => c.Contact)
+            .WithMany()
+            .HasForeignKey(c => c.ContactId)
+            .OnDelete(DeleteBehavior.NoAction);
 
     }
 }

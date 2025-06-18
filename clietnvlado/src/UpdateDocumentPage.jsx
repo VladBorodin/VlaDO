@@ -1,13 +1,22 @@
 import { useEffect, useState, useRef } from "react";
 import { FaPlus, FaMoon, FaSun, FaArrowLeft } from "react-icons/fa";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useParams, useLocation } from "react-router-dom";
+import { useAlert } from "./contexts/AlertContext";
 import api from "./api";
 
 export default function UpdateDocumentPage() {
+  const { id: routeId }  = useParams();
+  const { state } = useLocation();
+  const parentDoc = state?.parentDoc;
+  const parentRoom    = parentDoc?.room
+  const parentRoomId  = parentRoom?.id ?? "";
+  const parentFixedId = parentDoc?.id || routeId || "";
   const [rooms, setRooms] = useState([]);
-  const [docs, setDocs] = useState([]);
+  const [docs, setDocs] = useState(parentDoc ? [parentDoc] : []);
   const [roomId, setRoomId] = useState("");
-  const [parentId, setParentId] = useState("");
+  const [parentId, setParentId] = useState(parentFixedId);
+  const [parentInfo, setParentInfo] = useState(null);
+  const [alerts, setAlerts] = useState([]);
   const [note, setNote] = useState("");
   const [name, setName] = useState("");
   const [file, setFile] = useState(null);
@@ -20,17 +29,46 @@ export default function UpdateDocumentPage() {
     !localStorage.getItem("theme"))
   );
   const [dragActive, setDragActive] = useState(false);
+  const { push } = useAlert();
+
+  useEffect(() => {
+    alerts.forEach(m => push(m, "warning"));
+  }, [alerts]);
 
   useEffect(() => {
     api.get("/rooms/my").then(r => {
-    console.log("Rooms response:", r);
     if (Array.isArray(r.data)) setRooms(r.data);
-  }).catch(err => {
-    console.error("Ошибка при загрузке комнат:", err.response?.status, err.response?.data);
-  });
-    api.get("/documents?type=own").then(r => {
-      if (Array.isArray(r.data)) setDocs(r.data);
+    }).catch(err => {
+      console.error("Ошибка при загрузке комнат:", err.response?.status, err.response?.data);
     });
+    if (parentDoc) {
+      // 1. Сначала базовая информация из parentDoc — чтобы не ждать запрос
+      setParentInfo(prev => ({
+        name   : parentDoc.name,
+        ext    : parentDoc.name.split(".").pop().toLowerCase(),
+        version: parentDoc.version,
+        size   : prev?.size // оставить старую size (если уже был мета-запрос)
+      }));
+
+      // 2. Затем дозагружаем точные данные (например, size)
+      api.get(`/documents/${parentFixedId}/meta`)
+        .then(r => setParentInfo(info => ({
+          ...info, // сохраняем name/version/ext если были
+          size: r.data.size,
+        })))
+        .catch(console.error);
+    } else if (parentFixedId) {
+      // fallback если нет parentDoc — грузим всё из /meta
+      api.get(`/documents/${parentFixedId}/meta`)
+        .then(r => setParentInfo({
+          name   : r.data.name,
+          size   : r.data.size,
+          ext    : r.data.extension,
+          version: r.data.version
+        }))
+        .catch(console.error);
+    }
+
     
     if (darkMode) {
       document.body.classList.add("dark");
@@ -52,6 +90,23 @@ export default function UpdateDocumentPage() {
     }
   };
 
+  useEffect(() => {
+    if (!file || !parentInfo) { setAlerts([]); return; }
+    
+    const newExt  = file.name.split(".").pop().toLowerCase();
+    const sizePct = Math.abs(file.size - parentInfo.size) / parentInfo.size * 100;
+    
+    const a = [];
+    if (file.name !== parentInfo.name)
+      a.push(`Название отличается: «${parentInfo.name}» → «${file.name}»`);
+    if (newExt !== parentInfo.ext)
+      a.push(`Формат изменился: .${parentInfo.ext} → .${newExt}`);
+    if (sizePct > 20)
+      a.push(`Размер отличается более чем на 20 %`);
+   
+    setAlerts(a);
+  }, [file, parentInfo]);
+
   const handleUpload = async () => {
     if (!file) return;
     setLoading(true);
@@ -59,26 +114,32 @@ export default function UpdateDocumentPage() {
     try {
       const form = new FormData();
       form.append("file", file);
-      form.append("name", name); // обязательно
       if (note) form.append("note", note);
-      if (parentId) form.append("parentDocId", parentId);
 
-      let endpoint = "/documents"; // ✅ без /api
-      if (roomId) {
-        form.append("roomId", roomId);
+      let endpoint;
+
+      if (parentId) {
+        endpoint = parentDoc?.room
+          ? `/rooms/${parentDoc.room.id}/docs/${parentId}/version`
+          : `/documents/${parentId}/version`;
+      } else if (roomId) {
         endpoint = `/rooms/${roomId}/docs`;
+        form.append("name", name);
+      } else {
+        endpoint = `/documents`;
+        form.append("name", name);
       }
-
       await api.post(endpoint, form);
-      alert("Документ успешно загружен");
+      push("Документ обновлён", "success");
       navigate("/documents");
     } catch (err) {
       console.error(err);
-      alert("Ошибка при загрузке документа");
+      push("Ошибка при обновлении документа", "danger");
     } finally {
       setLoading(false);
     }
-};
+  };
+
 
   return (
     <div className="container mt-4">
@@ -94,45 +155,39 @@ export default function UpdateDocumentPage() {
               {darkMode ? <FaSun /> : <FaMoon />}
             </button>
           </div>
-        <div className="card-header fw-bold">Создание документа</div>
+        <div className="card-header fw-bold">Обновление документа</div>
           
         <div className="card-body">
+          {alerts.length > 0 && (
+            <div className="alert alert-warning">
+              <ul className="mb-0 ps-3">
+                {alerts.map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            </div>
+          )}
           {/* Комната */}
           <div className="mb-3">
             <label className="form-label">Комната</label>
-            <div className="d-flex align-items-center gap-2">
-              <select
-                className="form-select"
-                value={roomId}
-                onChange={e => setRoomId(e.target.value)}
-              >
-                <option value="">— Без комнаты —</option>
-                {rooms.map(room => (
-                  <option key={room.id} value={room.id}>
-                    {room.title}
-                  </option>
-                ))}
-              </select>
-              <Link to="/rooms/create" className="btn btn-success btn-sm">
-                <FaPlus className="me-1" />
-              </Link>
-            </div>
+            <input
+              className="form-control"
+              value={parentRoom?.title ?? "— Без комнаты —"}
+              disabled
+            />
           </div>
 
           {/* Родительский документ */}
           <div className="mb-3">
-            <label className="form-label">Родительский документ (опц.)</label>
+            <label className="form-label">Родительский документ</label>
             <select
               className="form-select"
               value={parentId}
-              onChange={e => setParentId(e.target.value)}
+              disabled
             >
-              <option value="">— Нет —</option>
-              {docs.map(doc => (
-                <option key={doc.id} value={doc.id}>
-                  {doc.name} (v{doc.version})
+              {parentInfo && (
+                <option value={parentId}>
+                  {parentInfo.name} (v{parentInfo.version ?? "?"})
                 </option>
-              ))}
+              )}
             </select>
           </div>
 

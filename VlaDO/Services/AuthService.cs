@@ -23,27 +23,32 @@ namespace VlaDO.Services
             _config = config ?? throw new ArgumentNullException(nameof(config));
         }
 
+        static string NormalizeEmail(string? e) => (e ?? "").Trim().ToLowerInvariant();
+
         public async Task RegisterAsync(RegisterDto dto)
         {
-            if (await _uow.Users.GetByEmailAsync(dto.Email) is not null)
-                throw new InvalidOperationException("Email уже зарегистрирован");
+            var email = NormalizeEmail(dto.Email);
+            if (await _uow.Users.GetByEmailAsync(email) is not null)
+                throw new InvalidOperationException("Имя пользователя или E-mail уже используются");
+
+            if (await _uow.Users.GetByNameAsync(dto.Name) is not null)
+                throw new InvalidOperationException("Имя пользователя или E-mail уже используются");
 
             var user = new User
             {
-                Name = dto.Name,
-                Email = dto.Email,
+                Name = dto.Name.Trim(),
+                Email = dto.Email.Trim(),
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 
             await _uow.Users.AddAsync(user);
-
             await _uow.CommitAsync();
         }
 
 
         public async Task<string?> LoginAsync(LoginDto dto)
         {
-            var user = await _uow.Users.GetByEmailAsync(dto.Email);
+            var user = await _uow.Users.GetByEmailAsync(NormalizeEmail(dto.Email));
             if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
                 return null;
 

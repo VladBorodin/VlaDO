@@ -78,7 +78,7 @@ namespace VlaDO.Migrations
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime>("ExpiresAt")
+                    b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Token")
@@ -95,6 +95,8 @@ namespace VlaDO.Migrations
 
                     b.HasIndex("Token")
                         .IsUnique();
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("DocumentTokens");
                 });
@@ -193,6 +195,21 @@ namespace VlaDO.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("VlaDO.Models.UserContact", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ContactId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId", "ContactId");
+
+                    b.HasIndex("ContactId");
+
+                    b.ToTable("UserContact");
+                });
+
             modelBuilder.Entity("VlaDO.Models.Document", b =>
                 {
                     b.HasOne("VlaDO.Models.Room", "Room")
@@ -211,7 +228,15 @@ namespace VlaDO.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("VlaDO.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Document");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("VlaDO.Models.PasswordResetToken", b =>
@@ -255,6 +280,25 @@ namespace VlaDO.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("VlaDO.Models.UserContact", b =>
+                {
+                    b.HasOne("VlaDO.Models.User", "Contact")
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("VlaDO.Models.User", "User")
+                        .WithMany("Contacts")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Contact");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("VlaDO.Models.Document", b =>
                 {
                     b.Navigation("Tokens");
@@ -269,6 +313,8 @@ namespace VlaDO.Migrations
 
             modelBuilder.Entity("VlaDO.Models.User", b =>
                 {
+                    b.Navigation("Contacts");
+
                     b.Navigation("OwnedRooms");
 
                     b.Navigation("Rooms");

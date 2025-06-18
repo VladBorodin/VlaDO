@@ -1,24 +1,51 @@
-// src/ProfileModal.jsx
-
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "./api";
 import { FaTimes } from "react-icons/fa";
+import debounce from "./utils/debounce";
 
 export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
+  const [originalName] = useState(user.name);
+
   const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
+  const [email, setEmail] = useState(user?.email ?? "");
 
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [nameOk, setNameOk] = useState(true);
+  const [error,  setError ] = useState("");
+  const [success,setSuccess] = useState("");
+  const [loading,setLoading] = useState(false);
 
-  // Контролируем, какая панель аккордеона раскрыта: "profile" или "password" или null
   const [openSection, setOpenSection] = useState(null);
 
+  useEffect(() => {
+    if (show) {
+      setName (user?.name  ?? "");
+      setEmail(user?.email ?? "");
+      setCurrentPwd("");
+      setNewPwd("");
+      setConfirmPwd("");
+      setSuccess("");
+      setError("");
+    }
+  }, [show, user]);
+
+  const checkName = useCallback(
+    debounce(async n => {
+      if (!n || typeof n !== "string" || !n.trim() || n === originalName) {
+        setNameOk(true);
+        return;
+      }
+      const { data } = await api.get("/users/name-exists",{ params:{ name:n } });
+      setNameOk(!data.exists);
+    }, 350),
+    [originalName]
+  );
+
+  useEffect(() => { checkName(name); }, [name, checkName]);
+  
   if (!show) return null;
 
   const handleUpdateProfile = async (e) => {
@@ -26,12 +53,16 @@ export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
     setError("");
     setSuccess("");
     setLoading(true);
+    if (!nameOk) { setError("Имя занято"); return; }
     try {
       const { data } = await api.put("/users/me", { name, email });
       setSuccess("Профиль обновлён");
       onUpdateUser(data);
-    } catch {
-      setError("Не удалось обновить профиль");
+    } catch (err) {
+      if (err.response?.status === 409)
+        setError(err.response.data);
+      else
+        setError("Не удалось обновить профиль");
     }
     setLoading(false);
   };
@@ -112,6 +143,13 @@ export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
                           />
                           <label htmlFor="profileName">Имя</label>
                         </div>
+
+                        {!nameOk && (
+                          <div className="alert alert-warning py-2">
+                            Имя уже занято
+                          </div>
+                        )}
+
                         <div className="form-floating mb-3">
                           <input
                             type="email"

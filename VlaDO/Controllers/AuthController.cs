@@ -18,7 +18,10 @@ namespace VlaDO.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
             if (await _users.GetByEmailAsync(dto.Email) != null)
-                return Conflict("Email уже зарегистрирован");
+                return Conflict("E-mail уже зарегистрирован");
+
+            if (await _users.GetByNameAsync(dto.Name) != null)
+                return Conflict("Имя пользователя занято");
 
             await _auth.RegisterAsync(dto);
             return Ok("Регистрация успешна");

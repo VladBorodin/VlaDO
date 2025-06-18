@@ -14,5 +14,6 @@ namespace VlaDO.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public ICollection<Room> OwnedRooms { get; set; } = new List<Room>();
         public ICollection<RoomUser> Rooms { get; set; } = new List<RoomUser>();
+        public ICollection<UserContact> Contacts { get; set; } = new List<UserContact>();
     }
 }

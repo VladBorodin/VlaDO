@@ -17,6 +17,8 @@ namespace VlaDO.Repositories
         public UnitOfWork(DocumentFlowContext context)
         {
             _context = context;
+
+            Contacts = new GenericRepository<UserContact>(context);
             Users = new UserRepository(context);
             Rooms = new RoomRepository(context);
             Documents = new GenericRepository<Document>(context);
@@ -31,6 +33,6 @@ namespace VlaDO.Repositories
 
         public void Dispose() => _context.Dispose();
         public IDocumentRepository DocumentRepository { get; }
-
+        public IGenericRepository<UserContact> Contacts { get; }
     }
 }

@@ -6,13 +6,15 @@ import {
   FaBell,
   FaPlus,
   FaFolder,
-  FaUserCircle
+  FaUserCircle,
+  FaAddressBook
 } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import ProfileModal from "./ProfileModal";
+import ContactsModal from "./ContactsModal";
 import { useNavigate } from 'react-router-dom';
+import api from "./api";
 
-const MOCK_USER = { username: "Владислав" };
 const MOCK_ROOMS = [
   { id: "r1", title: "Проект 2025" },
   { id: "r2", title: "Личное" },
@@ -30,7 +32,8 @@ const MOCK_ACTIVITY = [
 
 export default function Dashboard({ onLogout }) {
     const [showProfile, setShowProfile] = useState(false);
-    const [user, setUser] = useState(MOCK_USER);
+    const [showContacts, setShowContacts] = useState(false);
+    const [user, setUser] = useState(null);
     const [theme, setTheme] = useState(() =>
         localStorage.getItem("theme") || "light"
     );
@@ -39,7 +42,20 @@ export default function Dashboard({ onLogout }) {
     const [documents] = useState(MOCK_DOCS);
     const [activities] = useState(MOCK_ACTIVITY);
 
-  // Apply theme classes to <body>
+    const navigate = useNavigate();
+
+    useEffect(() => {
+      const loadMe = async () => {
+        try {
+          const { data } = await api.get("/users/me");
+          setUser(data);
+        } catch (e) {
+          console.error("Не удалось получить профиль", e);
+        }
+      };
+      loadMe();
+    }, []);
+
   useEffect(() => {
     document.body.className =
       theme === "dark" ? "bg-dark text-light" : "bg-light text-dark";
@@ -73,7 +89,11 @@ export default function Dashboard({ onLogout }) {
           />
 
           <div className="ms-auto d-flex align-items-center gap-3">
-            <span className="fw-medium me-2">{`Здравствуйте, ${MOCK_USER.username}`}</span>
+            {user && (
+              <span className="fw-medium me-2">
+                {`Здравствуйте, ${user.name}`}
+              </span>
+            )}
 
             {/* Аватар + открытие модала */}
             <button
@@ -83,6 +103,18 @@ export default function Dashboard({ onLogout }) {
                 style={{ color: theme === "dark" ? "#ccc" : "#333" }}
             >
                 <FaUserCircle size={24} />
+            </button>
+
+            {/* иконка-контактов */}
+            <button
+              className="btn btn-link"
+              title="Контакты"
+              style={{ color: theme === "dark" ? "#ccc" : "#333" }}
+              /* TODO: открыть модал */
+              onClick={()=>setShowContacts(true)}
+            >
+              {/* выберите иконку */}
+              <FaAddressBook size={22}/>
             </button>
 
             <button
@@ -227,14 +259,18 @@ export default function Dashboard({ onLogout }) {
       </footer>
 
         {/* Профильный модал */}
-        <ProfileModal
-        show={showProfile}
-        onClose={() => setShowProfile(false)}
-        user={user}
-        onUpdateUser={(updated) => {
-            setUser(updated);
-            setShowProfile(false);
-        }}
+        {user && showProfile && (
+          <ProfileModal
+            show={showProfile}
+            onClose={() => setShowProfile(false)}
+            user={user}
+            onUpdateUser={u => { setUser(prev => ({ ...prev, ...u })); setShowProfile(false); }}
+          />
+        )}
+        <ContactsModal
+          show={showContacts}
+          onClose={()=>setShowContacts(false)}
+          theme={theme}
         />
     </>
   );
