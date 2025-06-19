@@ -247,3 +247,64 @@ body.dark .app-alert.alert-danger    { background:#402020; border-color:#6a2d2d;
 body.dark .app-alert .btn-close {
   filter: invert(1) grayscale(100%) contrast(200%);
 }
+
+body.dark .accordion-item {
+  background-color: #1e1e1e;
+  border-color: #333;
+  color: #eee;
+}
+
+body.dark .accordion-button {
+  background-color: #232323;
+  color: #f8f9fa;
+}
+
+body.dark .accordion-button:not(.collapsed) {
+  background-color: #2a2a2a;
+  color: #fff;
+}
+
+body.dark .accordion-button::after {
+  filter: invert(1);
+}
+
+body.dark .accordion-body {
+  background-color: #1e1e1e;
+  color: #f8f9fa;
+}
+
+.row-selected {
+  background-color: #cce5ff;
+}
+
+body.dark .row-selected {
+  background-color: #34495e;
+  color: #fff;
+}
+
+body.dark .table-dark tbody tr:hover:not(.row-selected) {
+  background-color: #343a40;
+}
+
+.table-hover tbody tr:hover:not(.row-selected) {
+  background-color: #f2f2f2;
+}
+
+.table-hover tbody tr.row-selected,
+.table-hover tbody tr.row-selected:hover {
+  background-color:#cce5ff !important;
+  color:#212529 !important;
+}
+
+body.dark .table-hover tbody tr.row-selected,
+body.dark .table-hover tbody tr.row-selected:hover {
+  background-color:#34495e !important;
+  color:#fff !important;
+}
+
+.table-hover tbody tr.row-selected {
+  border-left:4px solid #0d6efd;
+}
+body.dark .table-hover tbody tr.row-selected {
+  border-left:4px solid #ffc107;
+}

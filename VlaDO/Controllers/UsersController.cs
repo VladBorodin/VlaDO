@@ -83,4 +83,12 @@ public class UsersController : ControllerBase
 
         return Ok(new UserBriefDto(user.Id, user.Name));
     }
+    [HttpGet("getMe")]
+    public async Task<IActionResult> GetMe()
+    {
+        var user = await _uow.Users.GetByIdAsync(User.GetUserId());
+        return user is null
+            ? NotFound()
+            : Ok(new UserBriefDto(user.Id, user.Name));
+    }
 }

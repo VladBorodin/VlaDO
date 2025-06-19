@@ -14,5 +14,6 @@ namespace VlaDO.Repositories.Documents
         Task<IEnumerable<Document>> GetAccessibleToUserAsync(Guid userId);
         Task<IEnumerable<Document>> GetLatestVersionsForUserAsync(Guid userId);
         Task<IEnumerable<Document>> GetOtherAccessibleDocsAsync(Guid userId);
+        Task<IEnumerable<Document>> GetArchivedForUserAsync(Guid userId);
     }
 }

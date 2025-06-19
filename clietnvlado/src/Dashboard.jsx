@@ -45,9 +45,13 @@ export default function Dashboard({ onLogout }) {
     const navigate = useNavigate();
 
     useEffect(() => {
+      document.body.className = theme === "dark" ? "dark" : "light";
+    }, [theme]);
+    
+    useEffect(() => {
       const loadMe = async () => {
         try {
-          const { data } = await api.get("/users/me");
+          const { data } = await api.get("/users/getMe");
           setUser(data);
         } catch (e) {
           console.error("Не удалось получить профиль", e);
@@ -89,11 +93,9 @@ export default function Dashboard({ onLogout }) {
           />
 
           <div className="ms-auto d-flex align-items-center gap-3">
-            {user && (
-              <span className="fw-medium me-2">
-                {`Здравствуйте, ${user.name}`}
-              </span>
-            )}
+            {user
+              ? <span className="fw-medium me-2">{`Здравствуйте, ${user.name}`}</span>
+              : <span className="text-muted me-2">Загрузка профиля…</span>}
 
             {/* Аватар + открытие модала */}
             <button
@@ -264,6 +266,7 @@ export default function Dashboard({ onLogout }) {
             show={showProfile}
             onClose={() => setShowProfile(false)}
             user={user}
+            theme={theme}
             onUpdateUser={u => { setUser(prev => ({ ...prev, ...u })); setShowProfile(false); }}
           />
         )}

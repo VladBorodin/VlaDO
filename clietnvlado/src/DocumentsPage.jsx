@@ -3,12 +3,13 @@ import { FaSun, FaMoon, FaFolderOpen, FaArrowLeft, FaTimes } from "react-icons/f
 import { Link, useNavigate } from "react-router-dom";
 import api from "./api";
 import { useAlert } from "./contexts/AlertContext"
+import DocumentPreviewModal from "./DocumentPreviewModal";
 
 export default function DocumentsPage() {
   const navigate = useNavigate();
   const { push } = useAlert();
 
-  // Попытка взять userId из sessionStorage (если вы туда сохраняли при логине)
+  const [previewId, setPreviewId] = useState(null);
   const [copyModalVisible, setCopyModalVisible] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
@@ -19,20 +20,22 @@ export default function DocumentsPage() {
   const [newName, setNewName] = useState("");
   const [sortField, setSortField] = useState(null);
   const [sortDirection, setSortDirection] = useState("asc");
-  const [addRoomModal, setAddRoomModal]   = useState(false);
-  const [docForRoom,   setDocForRoom]     = useState(null);
-  const [targetRoomId, setTargetRoomId]   = useState(null);
+  const [addRoomModal, setAddRoomModal] = useState(false);
+  const [docForRoom,   setDocForRoom] = useState(null);
+  const [targetRoomId, setTargetRoomId] = useState(null);
 
   const [accessModal, setAccessModal] = useState(false);
   const [accessDoc , setAccessDoc ] = useState(null);
 
-  const [users      , setUsers]   = useState([]);          // все пользователи
-  const [selUserId  , setSelUser] = useState("");
-  const [selLevel   , setSelLvl ] = useState("Read");
+  const [users, setUsers] = useState([]);
+  const [selUserId, setSelUser] = useState("");
+  const [selLevel, setSelLvl ] = useState("Read");
+
+  const [selectedRowId, setSelectedRowId] = useState(null);
 
   const loadUsers = async () => {
     if (users.length) return;
-    const { data } = await api.get("/users");
+    const { data } = await api.get("/contacts");
     setUsers(Array.isArray(data) ? data : []);
   };
 
@@ -75,11 +78,7 @@ export default function DocumentsPage() {
         name: newName
       });
 
-      setDocuments(prev =>
-        prev.map(d =>
-          d.id === selectedDoc.id ? { ...d, name: newName } : d
-        )
-      );
+      setDocuments(prev =>prev.map(d =>d.id === selectedDoc.id ? { ...d, name: newName } : d));
       await loadDocs();
     } catch (err) {
       push("Ошибка при переименовании", "danger");
@@ -89,10 +88,13 @@ export default function DocumentsPage() {
     }
   };
 
-  // Тема (light / dark)
   const [theme, setTheme] = useState(
     () => localStorage.getItem("theme") || "light"
   );
+  
+  useEffect(() => {
+    document.body.className = theme === "dark" ? "dark" : "light";
+  }, [theme]);
 
   const cardBg = thm =>
     thm === "dark"
@@ -120,7 +122,11 @@ export default function DocumentsPage() {
       { key: "all", label: "Все" }
     ];
     const [activeTab, setActiveTab] = useState("lastupdate");
-
+    const LEVEL_VALUE = {
+      Read: 0,
+      Edit: 1,
+      Full: 2
+    };
     const loadDocs = async (tab = activeTab) => {
       let endpoint = "/documents";
       if (tab === "userDoc")   endpoint += "?type=userDoc";
@@ -132,7 +138,6 @@ export default function DocumentsPage() {
       setDocuments(Array.isArray(data) ? data : []);
     };
 
-    // Список документов (моковые данные)
     const [documents, setDocuments] = useState([]);
     useEffect(() => {
       let endpoint = "/documents";
@@ -161,15 +166,14 @@ export default function DocumentsPage() {
   const tabClass = (key) =>
     `nav-link ${activeTab === key ? "active" : ""}`;
 
-  // ==== Модальное контекстное меню ====
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const modalRef = useRef(null);
 
-  // Вызывается при правом клике на строку
   const onRowContextMenu = (e, doc) => {
     e.preventDefault();
     setSelectedDoc(doc);
+    setAccessDoc(doc);
     setMenuPosition({ x: e.pageX, y: e.pageY });
     setModalVisible(true);
   };
@@ -187,6 +191,9 @@ export default function DocumentsPage() {
     Close: "Закрыть доступ"
   };
 
+  const usedUserIds = new Set(shares.map(s => s.userId));
+  const availableUsers = users.filter(u => !usedUserIds.has(u.id));
+
   useEffect(()=>{ loadDocs(); }, [activeTab]);
 
   useEffect(() => {
@@ -195,6 +202,7 @@ export default function DocumentsPage() {
         setModalVisible(false);
       }
     };
+    
     if (modalVisible) {
       document.addEventListener("mousedown", handleClickOutside);
     } else {
@@ -205,6 +213,40 @@ export default function DocumentsPage() {
     };
   }, [modalVisible]);
 
+  useEffect(() => {
+    const docToHighlight = sessionStorage.getItem("highlightDocId");
+    const savedTab = sessionStorage.getItem("activeTab");
+
+    if (savedTab) {
+      setActiveTab(savedTab);
+
+      setTimeout(() => {
+        if (docToHighlight) {
+          setSelectedRowId(docToHighlight);
+          const rowEl = document.getElementById(`doc-${docToHighlight}`);
+          if (rowEl) rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+
+        sessionStorage.removeItem("highlightDocId");
+        sessionStorage.removeItem("activeTab");
+      }, 500);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRowId) return;
+
+    // Ждём, пока DOM обновится
+    const timeout = setTimeout(() => {
+      const rowEl = document.getElementById(`doc-${selectedRowId}`);
+      if (rowEl) {
+        rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 100); // 100-200 мс достаточно после рендера
+
+    return () => clearTimeout(timeout);
+  }, [selectedRowId]);
+
   const handleEdit = () => {
     if (!selectedDoc) return;
     setModalVisible(false);
@@ -212,6 +254,8 @@ export default function DocumentsPage() {
       state: { parentDoc: selectedDoc }
     });
   };
+
+  const handleRowDoubleClick = id => setPreviewId(id);
 
   const handleDelete = async () => {
     if (!selectedDoc) return;
@@ -226,30 +270,39 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleArchive = () => {
-      console.log("Архивировать", selectedDoc);
+  const handleArchive = async () => {
+    if (!selectedDoc) return;
+    try {
+      await api.post(`/documents/${selectedDoc.id}/archive`);
+      push("Документ заархивирован", "success");
+      await loadDocs();
+    } catch (e) {
+      push("Ошибка при архивировании", "danger");
+    } finally {
       setModalVisible(false);
-    };
-    const handleCopy = async () => {
-      if (!selectedDoc) return;
+    }
+  };
 
-      try {
-        const { data } = await api.get("/rooms/my");
-        setRooms(data);
-        setSelectedRoomId(null);
-        setCopyModalVisible(true);
-        setModalVisible(false);
-      } catch (err) {
-        push("Не удалось получить список комнат", "danger");
-      }
-    };
+  const handleCopy = async () => {
+    if (!selectedDoc) return;
+
+    try {
+      const { data } = await api.get("/rooms/my");
+      setRooms(data);
+      setSelectedRoomId(null);
+      setCopyModalVisible(true);
+      setModalVisible(false);
+    } catch (err) {
+      push("Не удалось получить список комнат", "danger");
+    }
+  };
 
   const confirmCopy = async () => {
     if (!selectedDoc) return;
 
     try {
       await api.post(`/documents/${selectedDoc.id}/copy`, {
-        targetRoomId: selectedRoomId    // null => вне комнаты
+        targetRoomId: selectedRoomId
       });
       setActiveTab(activeTab);
       setCopyModalVisible(false);
@@ -269,7 +322,6 @@ export default function DocumentsPage() {
 
     setSelUser(lst[0]?.userId  ?? "");
     setSelLvl (lst[0]?.accessLevel ?? "Read");
-    setAccessDoc(selectedDoc);
     setAccessModal(true);
     setModalVisible(false);
   };
@@ -340,6 +392,14 @@ export default function DocumentsPage() {
     } else {
       setSortField(field);
       setSortDirection("asc");
+    }
+  };
+
+  const handleRowClick = (docId) => {
+    if (selectedRowId === docId) {
+      navigate(`/documents/${docId}`);
+    } else {
+      setSelectedRowId(docId);
     }
   };
 
@@ -509,9 +569,18 @@ export default function DocumentsPage() {
                 getSortedDocuments().map((doc) => (
                   <tr
                     key={doc.id}
-                    className={theme === "dark" ? "border-secondary" : ""}
+                    id={`doc-${doc.id}`}
+                    className={[
+                      theme === "dark" ? "border-secondary" : "",
+                      selectedRowId === doc.id ? "row-selected" : ""
+                    ].join(" ").trim()}
+                    onClick={() => handleRowClick(doc.id)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      handleRowDoubleClick(doc.id);
+                    }}
                     onContextMenu={(e) => onRowContextMenu(e, doc)}
-                    style={{ cursor:"context-menu" }}
+                    style={{ cursor: "pointer" }}
                   >
                     <td>{doc.name}</td>
                     <td>{doc.version}</td>
@@ -525,9 +594,20 @@ export default function DocumentsPage() {
                     <td>{doc.createdBy?.name || "-"}</td>
                     <td>
                       {doc.previousVersionId ? (
-                        <Link to={`/documents/${doc.previousVersionId}`} className="link-primary">
+                        <button
+                          className="btn btn-link p-0"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setActiveTab("all");
+                            setTimeout(() => {
+                              setSelectedRowId(doc.previousVersionId);
+                              const rowEl = document.getElementById(`doc-${doc.previousVersionId}`);
+                              if (rowEl) rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }, 300);
+                          }}
+                        >
                           Просмотр
-                        </Link>
+                        </button>
                       ) : (
                         "-"
                       )}
@@ -625,7 +705,7 @@ export default function DocumentsPage() {
                     <option
                       key={r.id}
                       value={r.id}
-                      disabled={r.accessLevel === "Read"}              // <── только чтение
+                      disabled={r.accessLevel === "Read"}
                     >
                       {r.title} — {r.accessLevel === "Read"
                         ? "только чтение"
@@ -703,6 +783,16 @@ export default function DocumentsPage() {
         </div>
       )}
 
+      <DocumentPreviewModal
+        docId={previewId}
+        show={!!previewId}
+        onClose={() => setPreviewId(null)}
+        onOk={() => {
+          setPreviewId(null);
+          navigate(`/documents/${previewId}`);
+        }}
+      />
+
       {accessModal && accessDoc && (
         <div className="modal fade show"
             style={{display:"block", background:"rgba(0,0,0,.5)"}}>
@@ -738,28 +828,26 @@ export default function DocumentsPage() {
                 {/* ─── Пользователь ───────────────────────────── */}
                 <label className="form-label">Пользователь</label>
                 <select className="form-select mb-3"
-                        value={selUserId}
-                        onChange={e=>{
-                          const uid = e.target.value;
-                          setSelUser(uid);
-                          const sh = shares.find(s=>s.userId===uid);
-                          setSelLvl(sh?.accessLevel ?? "Read");
-                        }}>
-                  {(shares ?? []).map(s => (
+                  value={selUserId}
+                  onChange={e=>{
+                    const uid = e.target.value;
+                    setSelUser(uid);
+                    const sh = shares.find(s=>s.userId===uid);
+                    setSelLvl(sh?.accessLevel ?? "Read");
+                  }}>
+                  <option value="" disabled>— выберите пользователя —</option>
+                  {/* Уже имеющие доступ — из токенов */}
+                  {shares.map(s => (
                     <option key={s.userId} value={s.userId}>
                       {s.userName} — {LEVEL_LABEL[s.accessLevel]}
                     </option>
                   ))}
-                  {/* список всех, кто ещё не имеет токена */}
-                  {Array.isArray(users) && users.map(u => (
+                  {/* Все остальные пользователи */}
+                  {availableUsers.map(u => (
                     <option key={u.id} value={u.id}>
                       {u.name}
                     </option>
                   ))}
-                  <option value="" disabled>— выберите пользователя —</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
                 </select>
 
                 {/* ─── Уровень доступа ────────────────────────── */}
@@ -783,21 +871,23 @@ export default function DocumentsPage() {
                   onClick={async ()=>{
                     try{
                       const share = shares.find(s=>s.userId===selUserId);
-                      if (!share) return;
 
                       if (selLevel==="Close"){
-                        // удалить токен
-                        await api.delete(`/documents/${accessDoc.id}/token/${share.tokenId}`);
-                        push("Доступ закрыт", "success");
+                        if (share) {
+                          await api.delete(`/documents/${accessDoc.id}/token/user/${selUserId}`);
+                          push("Доступ закрыт", "success");
+                        } else {
+                          push("У пользователя нет доступа", "warning");
+                        }
                       }else{
-                        // обновить/создать токен
-                        await api.post(
-                          `/documents/${accessDoc.id}/token`,
-                          { userId: selUserId, accessLevel: selLevel }   // ← без daysValid
-                        );
-                        push("Уровень доступа изменён", "success");
+                        await api.post(`/documents/${accessDoc.id}/token`, {
+                          userId: selUserId,
+                          accessLevel: LEVEL_VALUE[selLevel]
+                        });
+                        push("Доступ предоставлен", "success");
                       }
-
+                      const updatedShares = await loadShares(accessDoc.id);
+                      setShares(updatedShares);
                       setAccessModal(false);
                     }catch(e){
                       console.error(e);

@@ -24,10 +24,6 @@ public class DocumentTokenController : ControllerBase
     [HttpGet("tokens")]
     public async Task<IActionResult> List(Guid docId)
     {
-        // Только создатель или Full-доступ
-        if (!await _perm.CheckAccessAsync(User.GetUserId(), docId, AccessLevel.Full))
-            return Forbid();
-
         var tokens = await _uow.Tokens
             .FindAsync(t => t.DocumentId == docId && t.UserId != Guid.Empty);
 
@@ -98,5 +94,20 @@ public class DocumentTokenController : ControllerBase
                          s.User!.Name));
 
         return Ok(dto);
+    }
+    [HttpDelete("token/user/{userId:guid}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> DeleteByUser(Guid docId, Guid userId)
+    {
+        var token = await _uow.Tokens
+            .FirstOrDefaultAsync(t => t.DocumentId == docId && t.UserId == userId);
+
+        if (token == null)
+            return NotFound();
+
+        await _uow.Tokens.DeleteAsync(token.Id);
+        await _uow.CommitAsync();
+
+        return NoContent();
     }
 }

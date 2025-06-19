@@ -3,7 +3,7 @@ import api from "./api";
 import { FaTimes } from "react-icons/fa";
 import debounce from "./utils/debounce";
 
-export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
+export default function ProfileModal({ show, onClose, user, onUpdateUser, theme }) {
   const [originalName] = useState(user.name);
 
   const [name, setName] = useState(user.name);
@@ -20,6 +20,14 @@ export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
 
   const [openSection, setOpenSection] = useState(null);
 
+  const modalContentStyle = theme === "dark"
+  ? { background: "#1e1e1e", color: "#f8f9fa" }
+  : {};
+
+  const modalSectionClass = theme === "dark"
+    ? "bg-dark text-light"
+    : "bg-light text-dark";
+
   useEffect(() => {
     if (show) {
       setName (user?.name  ?? "");
@@ -31,6 +39,10 @@ export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
       setError("");
     }
   }, [show, user]);
+
+  useEffect(() => {
+    document.body.className = theme === "dark" ? "dark" : "light";
+  }, [theme]);
 
   const checkName = useCallback(
     debounce(async n => {
@@ -95,15 +107,15 @@ export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
     <>
       <div className="modal fade show" tabIndex="-1" style={{ display: "block" }}>
         <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content">
+          <div className="modal-content" style={modalContentStyle}>
             {/* Заголовок */}
-            <div className="modal-header">
+            <div className={`modal-header ${modalSectionClass}`}>
               <h5 className="modal-title">Управление профилем</h5>
               <button type="button" className="btn-close" onClick={onClose} />
             </div>
 
             {/* Тело модала */}
-            <div className="modal-body">
+            <div className={`modal-body ${modalSectionClass}`}>
               {/* Ошибки / Успех */}
               {error && <div className="alert alert-danger">{error}</div>}
               {success && <div className="alert alert-success">{success}</div>}
@@ -129,7 +141,7 @@ export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
                     aria-labelledby="headingProfile"
                     data-bs-parent="#profileAccordion"
                   >
-                    <div className="accordion-body">
+                    <div className={`accordion-body ${modalSectionClass}`}>
                       <form onSubmit={handleUpdateProfile} className="mb-4">
                         <div className="form-floating mb-3">
                           <input
@@ -192,7 +204,7 @@ export default function ProfileModal({ show, onClose, user, onUpdateUser }) {
                     aria-labelledby="headingPassword"
                     data-bs-parent="#profileAccordion"
                   >
-                    <div className="accordion-body">
+                    <div className={`accordion-body ${modalSectionClass}`}>
                       <form onSubmit={handleChangePassword}>
                         <div className="form-floating mb-3">
                           <input

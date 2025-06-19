@@ -33,15 +33,26 @@ namespace VlaDO.Services
 
             if (await _uow.Users.GetByNameAsync(dto.Name) is not null)
                 throw new InvalidOperationException("Имя пользователя или E-mail уже используются");
-
+            
+            var normalizedEmail = NormalizeEmail(dto.Email);
+            
             var user = new User
             {
                 Name = dto.Name.Trim(),
-                Email = dto.Email.Trim(),
+                Email = normalizedEmail,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 
             await _uow.Users.AddAsync(user);
+            await _uow.CommitAsync();
+
+            var archiveRoom = new Room
+            {
+                Title = "Архив",
+                OwnerId = user.Id
+            };
+
+            await _uow.Rooms.AddAsync(archiveRoom);
             await _uow.CommitAsync();
         }
 

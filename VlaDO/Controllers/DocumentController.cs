@@ -127,6 +127,7 @@ public class DocumentController : ControllerBase
             "lastupdate" => await _docRepo.GetLatestVersionsForUserAsync(userId),
             "userDoc" => await _docRepo.GetByCreatorAsync(userId),
             "all" => await _docRepo.GetAccessibleToUserAsync(userId),
+            "archived" => await _docRepo.GetArchivedForUserAsync(userId),
             _ => await _docRepo.GetAccessibleToUserAsync(userId)
         };
 
@@ -453,12 +454,19 @@ public class DocumentController : ControllerBase
     [HttpGet("/api/documents/{docId:guid}/meta")]
     public async Task<IActionResult> GetMeta(Guid docId)
     {
+        var userId = User.GetUserId();
         var doc = await _uow.Documents.GetByIdAsync(docId);
         if (doc == null) return NotFound();
 
-        if (doc.RoomId is Guid roomId &&
-            !await _perm.CheckAccessAsync(User.GetUserId(), roomId, AccessLevel.Read))
+        if (doc.RoomId is Guid roomId)
+        {
+            var hasAccess = await _perm.CheckAccessAsync(userId, roomId, AccessLevel.Read);
+            if (!hasAccess) return Forbid();
+        }
+        else if (doc.CreatedBy != userId)
+        {
             return Forbid();
+        }
 
         var dto = new DocumentMetaDto(
             doc.Id,

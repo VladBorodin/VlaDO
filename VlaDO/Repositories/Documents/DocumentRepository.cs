@@ -11,9 +11,10 @@ namespace VlaDO.Repositories
 
         public async Task<IEnumerable<Document>> GetByCreatorAsync(Guid userId)
         {
-            return await _context.Documents
+            var query = _context.Documents
                 .Where(d => d.CreatedBy == userId)
-                .ToListAsync();
+                .Include(d => d.Room);
+                    return await ExcludeArchived(query).ToListAsync();
         }
 
         public async Task<IEnumerable<Document>> GetByRoomAsync(Guid roomId)
@@ -47,24 +48,19 @@ namespace VlaDO.Repositories
         }
         public async Task<IEnumerable<Document>> GetByRoomAndUserAsyncExcludeCreator(Guid userId)
         {
-            // 1. Получаем Id всех комнат, где пользователь участник
             var accessibleRoomIds = await _context.RoomUsers
                 .Where(ru => ru.UserId == userId)
                 .Select(ru => ru.RoomId)
                 .ToListAsync();
 
-            // 2. Берем все документы, у которых:
-            // - либо созданы этим пользователем
-            // - либо находятся в доступной комнате
             var docs = await _context.Documents
                 .Where(d =>
                     d.CreatedBy == userId ||
                     (d.RoomId != null && accessibleRoomIds.Contains(d.RoomId.Value)))
                 .ToListAsync();
 
-            // 3. Отбираем только последние версии
             var latestDocs = docs
-                .GroupBy(d => d.Name) // или по логике группировки (например, OriginalId если есть)
+                .GroupBy(d => d.Name)
                 .Select(g => g.OrderByDescending(d => d.Version).First())
                 .ToList();
 
@@ -78,14 +74,16 @@ namespace VlaDO.Repositories
         }
         public async Task<IEnumerable<Document>> GetVersionChainAsync(Guid docId)
         {
-            var root = await _context.Documents.FindAsync(docId);
+            var root = await _context.Documents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == docId);
+
             if (root == null)
                 return Enumerable.Empty<Document>();
 
             var hash = root.Hash;
             return await _context.Documents
                 .Where(d => d.Hash == hash || d.PrevHash == hash || d.ParentDocId == root.ParentDocId || d.Id == docId)
-                .OrderBy(d => d.Version)
                 .ToListAsync();
         }
         public async Task<DateTime?> GetLastChangeInRoomAsync(Guid roomId)
@@ -108,17 +106,17 @@ namespace VlaDO.Repositories
                 .Select(ru => ru.RoomId)
                 .ToListAsync();
 
-            var documents = await _context.Documents
+            var query = _context.Documents
                 .Where(doc =>
                     doc.CreatedBy == userId ||
                     (doc.RoomId != null && accessibleRoomIds.Contains(doc.RoomId.Value)) ||
                     doc.Tokens.Any(t => t.UserId == userId)
                 )
-                .Include(d => d.Room)
-                .ToListAsync();
+                .Include(d => d.Room);
 
-            return documents;
+            return await ExcludeArchived(query).ToListAsync();
         }
+
         public async Task<IEnumerable<Document>> GetOtherAccessibleDocsAsync(Guid userId)
         {
             var accessibleDocs = await GetAccessibleToUserAsync(userId);
@@ -152,6 +150,18 @@ namespace VlaDO.Repositories
                 if (parent == null) return current.Hash;
                 current = parent;
             }
+        }
+        public async Task<IEnumerable<Document>> GetArchivedForUserAsync(Guid userId)
+        {
+            return await _context.Documents
+                .Where(d => d.Room != null &&
+                            d.Room.Title == "Архив" &&
+                            d.Room.OwnerId == userId)
+                .ToListAsync();
+        }
+        private IQueryable<Document> ExcludeArchived(IQueryable<Document> query)
+        {
+            return query.Where(d => d.Room == null || d.Room.Title != "Архив");
         }
     }
 }
