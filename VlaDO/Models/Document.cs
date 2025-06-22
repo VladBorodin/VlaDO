@@ -13,7 +13,9 @@ namespace VlaDO.Models
         [Required]
         public Guid CreatedBy { get; set; }
         [Required]
-        public int Version { get; set; } = 1;
+        public int Version { get; set; } = 1; 
+        [Required, MaxLength(128)]
+        public string ForkPath { get; set; } = "0";
         public Guid? ParentDocId { get; set; }
         public byte[]? Data { get; set; }
         [MaxLength(1024)]

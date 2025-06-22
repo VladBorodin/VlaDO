@@ -14,7 +14,7 @@ export default function DocumentsPage() {
   const [rooms, setRooms] = useState([]);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const storedUserId = sessionStorage.getItem("userId");
-  const currentUserId = storedUserId ? storedUserId : null;
+  const currentUser = storedUserId ? storedUserId : null;
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [newName, setNewName] = useState("");
@@ -32,6 +32,10 @@ export default function DocumentsPage() {
   const [selLevel, setSelLvl ] = useState("Read");
 
   const [selectedRowId, setSelectedRowId] = useState(null);
+
+  const [versionTreeData, setVersionTreeData] = useState(null);
+  const [showTreeModal, setShowTreeModal] = useState(false);
+
 
   const loadUsers = async () => {
     if (users.length) return;
@@ -179,9 +183,9 @@ export default function DocumentsPage() {
   };
   
   const accessMatrix = {
-    Full: ["edit", "delete", "archive", "copy", "rename", "changeAccess", "toggleRoom", "download", "paste"],
-    Edit: ["edit", "copy", "rename", "changeAccess", "toggleRoom", "download", "paste"],
-    Read: ["copy", "download"]
+    Full: ["edit", "delete", "archive", "copy", "rename", "changeAccess", "toggleRoom", "download", "paste", "tree"],
+    Edit: ["edit", "copy", "rename", "changeAccess", "toggleRoom", "download", "paste", "tree"],
+    Read: ["copy", "download", "tree"]
   };
 
   const LEVEL_LABEL = {
@@ -236,13 +240,12 @@ export default function DocumentsPage() {
   useEffect(() => {
     if (!selectedRowId) return;
 
-    // Ждём, пока DOM обновится
     const timeout = setTimeout(() => {
       const rowEl = document.getElementById(`doc-${selectedRowId}`);
       if (rowEl) {
         rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
       }
-    }, 100); // 100-200 мс достаточно после рендера
+    }, 100);
 
     return () => clearTimeout(timeout);
   }, [selectedRowId]);
@@ -255,7 +258,28 @@ export default function DocumentsPage() {
     });
   };
 
-  const handleRowDoubleClick = id => setPreviewId(id);
+  const handleRowDoubleClick = async (id) => {
+    const doc = documents.find(d => d.id === id);
+    if (!doc) return;
+
+    const sharesForDoc = await loadShares(doc.id);
+    const level = getEffectiveAccessLevel(doc, sharesForDoc, rooms);
+
+    setSelectedDoc({ ...doc, effectiveAccessLevel: level });
+    setPreviewId(id);
+  };
+
+  function getEffectiveAccessLevel(doc, shares, rooms) {
+    const currentUser = sessionStorage.getItem("userId");
+
+    if (doc.createdBy.id === currentUser) return "Full";
+
+    const token = shares.find(s => s.documentId === doc.id);
+    if (token) return token.accessLevel;
+
+    const room = doc.room ? rooms.find(r => r.id === doc.room.id) : null;
+    return room?.accessLevel || "Read";
+  }
 
   const handleDelete = async () => {
     if (!selectedDoc) return;
@@ -385,6 +409,20 @@ export default function DocumentsPage() {
       push("Ошибка при скачивании файла", "danger");
     }
   };
+
+  const handleShowVersionTree = async () => {
+    if (!selectedDoc) return;
+
+    try {
+      const { data } = await api.get(`/documents/${selectedDoc.id}/versions`);
+      setVersionTreeData(data);
+      setShowTreeModal(true);
+    } catch (e) {
+      push("Не удалось загрузить дерево версий", "danger");
+    } finally {
+      setModalVisible(false);
+    }
+  };
   
   const handleSort = (field) => {
     if (sortField === field) {
@@ -396,11 +434,7 @@ export default function DocumentsPage() {
   };
 
   const handleRowClick = (docId) => {
-    if (selectedRowId === docId) {
-      navigate(`/documents/${docId}`);
-    } else {
-      setSelectedRowId(docId);
-    }
+    setSelectedRowId(docId);
   };
 
   const getSortedDocuments = () => {
@@ -457,7 +491,8 @@ export default function DocumentsPage() {
     { key: "rename", label: "Переименовать", action: openRenameModal },
     { key: "changeAccess", label: "Изменить доступ", action: handleChangeAccess },
     { key: "toggleRoom", label: selectedDoc?.room ? "Удалить из комнаты" : "Добавить в комнату", action: handleToggleRoom },
-    { key: "download", label: "Скачать", action: handleDownload }
+    { key: "download", label: "Скачать", action: handleDownload },
+    { key: "tree", label: "Дерево версий", action: handleShowVersionTree }
   ];
 
   const allowedKeys = accessMatrix[selectedDoc?.accessLevel] || [];
@@ -583,7 +618,9 @@ export default function DocumentsPage() {
                     style={{ cursor: "pointer" }}
                   >
                     <td>{doc.name}</td>
-                    <td>{doc.version}</td>
+                    <td>
+                      {`v${doc.version}${doc.forkPath && doc.forkPath !== "0" ? `-${doc.forkPath}` : ""}`}
+                    </td>
                     <td>{new Date(doc.createdAt).toLocaleString("ru-RU", {
                       day: "2-digit",
                       month: "long",
@@ -789,8 +826,11 @@ export default function DocumentsPage() {
         onClose={() => setPreviewId(null)}
         onOk={() => {
           setPreviewId(null);
-          navigate(`/documents/${previewId}`);
+          loadDocs();
         }}
+        theme={theme}   
+        accessLevel={selectedDoc?.effectiveAccessLevel}
+        onDownload={handleDownload}
       />
 
       {accessModal && accessDoc && (
@@ -933,6 +973,42 @@ export default function DocumentsPage() {
                   {item.label}
                 </button>
               ))}
+          </div>
+        </div>
+      )}
+
+      {showTreeModal && versionTreeData && (
+        <div className="modal fade show" style={{display:"block", background:"rgba(0,0,0,.5)"}}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content" style={{backgroundColor: theme === "dark" ? "#1e1e1e" : "#fff",
+              color: theme === "dark" ? "#f8f9fa" : "#212529"}}>
+              <div className={`modal-header ${theme === "dark" ? "bg-dark text-light" : ""}`}>
+                <h5 className="modal-title">Дерево версий</h5>
+                <button className="btn-close" onClick={() => setShowTreeModal(false)} />
+              </div>
+              <div className="modal-body">
+                <ul className="list-unstyled">
+                  {versionTreeData.map((v, i) => {
+                    const path = v.forkPath.split(".");
+                    const isFork = path.length > 1 && path[path.length - 1] !== "0";
+
+                    return (
+                      <li key={v.id} className="mb-2">
+                        <span style={{ color: "#d63384", fontFamily: "monospace" }}>
+                          {isFork ? "┣" : "|"} {v.forkPath.replace(/\./g, " → ")}
+                        </span>
+                        &nbsp;|&nbsp;
+                        <strong>{v.name}</strong>
+                        &nbsp;— {new Date(v.createdOn).toLocaleString("ru-RU")}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <div className={`modal-footer ${theme === "dark" ? "bg-dark text-light" : ""}`}>
+                <button className="btn btn-secondary" onClick={() => setShowTreeModal(false)}>Закрыть</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

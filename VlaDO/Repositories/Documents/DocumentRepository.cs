@@ -1,4 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Routing.Matching;
+using Microsoft.EntityFrameworkCore;
+using Org.BouncyCastle.Asn1.Ocsp;
+using System;
 using VlaDO.DTOs;
 using VlaDO.Models;
 using VlaDO.Repositories.Documents;
@@ -75,16 +78,42 @@ namespace VlaDO.Repositories
         public async Task<IEnumerable<Document>> GetVersionChainAsync(Guid docId)
         {
             var root = await _context.Documents
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.Id == docId);
-
-            if (root == null)
-                return Enumerable.Empty<Document>();
-
-            var hash = root.Hash;
-            return await _context.Documents
-                .Where(d => d.Hash == hash || d.PrevHash == hash || d.ParentDocId == root.ParentDocId || d.Id == docId)
-                .ToListAsync();
+        .AsNoTracking()
+        .FirstOrDefaultAsync(d => d.Id == docId);
+            
+                while (root is { ParentDocId: not null })
+                root = await _context.Documents
+                                 .AsNoTracking()
+                                 .FirstAsync(d => d.Id == root.ParentDocId);
+            
+                if (root == null)
+                        return Enumerable.Empty<Document>();
+            
+                // ── 2. Собираем «свою» ветку — все документы, для которых
+                //       root.Id входит в их восходящую цепочку ParentDocId  ────────────
+                //       (реализовано обычной рекурсией в памяти)
+            var versions = new List<Document> { root };
+            var queue = new Queue<Guid>();
+            queue.Enqueue(root.Id);
+            
+                // выбираем ВСЕ документы, чей ParentDocId не NULL
+            var candidates = await _context.Documents
+                    .AsNoTracking()
+                    .Where(d => d.ParentDocId != null)
+                    .ToListAsync();
+            
+                while (queue.Count > 0)
+                    {
+                var parentId = queue.Dequeue();
+                
+                        foreach (var child in candidates.Where(c => c.ParentDocId == parentId))
+                            {
+                    versions.Add(child);
+                    queue.Enqueue(child.Id);
+                            }
+                    }
+            
+                return versions.OrderBy(d => d.CreatedOn);
         }
         public async Task<DateTime?> GetLastChangeInRoomAsync(Guid roomId)
         {
@@ -131,26 +160,6 @@ namespace VlaDO.Repositories
                            (d.RoomId == null || !ownRoomIds.Contains(d.RoomId.Value)))
                 .ToList();
         }
-        public async Task<IEnumerable<Document>> GetLatestVersionsForUserAsync(Guid userId)
-        {
-            var docs = await GetAccessibleToUserAsync(userId);
-
-            var latest = docs
-                .GroupBy(d => GetChainRootHash(d, docs))
-                .Select(g => g.OrderByDescending(x => x.Version).First());
-
-            return latest.ToList();
-        }
-        private static string GetChainRootHash(Document d, IEnumerable<Document> pool)
-        {
-            var current = d;
-            while (true)
-            {
-                var parent = pool.FirstOrDefault(x => x.Id == current.ParentDocId);
-                if (parent == null) return current.Hash;
-                current = parent;
-            }
-        }
         public async Task<IEnumerable<Document>> GetArchivedForUserAsync(Guid userId)
         {
             return await _context.Documents
@@ -162,6 +171,30 @@ namespace VlaDO.Repositories
         private IQueryable<Document> ExcludeArchived(IQueryable<Document> query)
         {
             return query.Where(d => d.Room == null || d.Room.Title != "Архив");
+        }
+
+        public async Task<List<Document>> GetForkBranchAsync(Guid docId)
+        {
+            var doc = await _context.Documents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == docId);
+
+            if (doc == null)
+                return new List<Document>();
+
+            return await _context.Documents
+                .Where(d => d.ForkPath.StartsWith(doc.ForkPath))
+                .ToListAsync();
+        }
+        public async Task<IEnumerable<Document>> GetLatestVersionsByForkPathAsync(Guid userId)
+        {
+            var all = await GetAccessibleToUserAsync(userId);
+
+            var lastVersions = all
+                .Where(doc => !all.Any(p => p.ParentDocId == doc.Id))
+                .ToList();
+
+            return lastVersions;
         }
     }
 }

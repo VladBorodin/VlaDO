@@ -42,29 +42,28 @@ export default function UpdateDocumentPage() {
       console.error("Ошибка при загрузке комнат:", err.response?.status, err.response?.data);
     });
     if (parentDoc) {
-      // 1. Сначала базовая информация из parentDoc — чтобы не ждать запрос
       setParentInfo(prev => ({
         name   : parentDoc.name,
         ext    : parentDoc.name.split(".").pop().toLowerCase(),
         version: parentDoc.version,
-        size   : prev?.size // оставить старую size (если уже был мета-запрос)
+        size   : prev?.size,
+        forkPath: parentDoc.forkPath
       }));
 
-      // 2. Затем дозагружаем точные данные (например, size)
       api.get(`/documents/${parentFixedId}/meta`)
         .then(r => setParentInfo(info => ({
-          ...info, // сохраняем name/version/ext если были
+          ...info,
           size: r.data.size,
         })))
         .catch(console.error);
     } else if (parentFixedId) {
-      // fallback если нет parentDoc — грузим всё из /meta
       api.get(`/documents/${parentFixedId}/meta`)
         .then(r => setParentInfo({
           name   : r.data.name,
           size   : r.data.size,
           ext    : r.data.extension,
-          version: r.data.version
+          version: r.data.version,
+          forkPath: r.data.forkPath
         }))
         .catch(console.error);
     }
@@ -185,7 +184,7 @@ export default function UpdateDocumentPage() {
             >
               {parentInfo && (
                 <option value={parentId}>
-                  {parentInfo.name} (v{parentInfo.version ?? "?"})
+                  {parentInfo.name} (v{parentInfo.version}{parentInfo.forkPath && parentInfo.forkPath !== "0" ? `-${parentInfo.forkPath}` : ""})
                 </option>
               )}
             </select>

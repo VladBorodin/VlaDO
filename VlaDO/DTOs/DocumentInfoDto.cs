@@ -1,15 +1,16 @@
 ﻿namespace VlaDO.DTOs
 {
     public record DocumentInfoDto(
-    Guid Id,
-    string Name,
-    int Version,
-    Guid? ParentDocId,
-    string Hash,
-    string? PrevHash,
-    DateTime CreatedOn,
-    string? Note);
-
+        Guid Id,
+        string Name,
+        int Version,
+        Guid? ParentDocId,
+        string Hash,
+        string? PrevHash,
+        DateTime CreatedOn,
+        string? Note,
+        string ForkPath
+    );
 
     public record DownloadManyDto(IReadOnlyCollection<Guid> DocumentIds);
 }

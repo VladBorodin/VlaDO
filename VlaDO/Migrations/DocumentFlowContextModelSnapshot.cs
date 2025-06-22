@@ -32,6 +32,11 @@ namespace VlaDO.Migrations
                     b.Property<byte[]>("Data")
                         .HasColumnType("BLOB");
 
+                    b.Property<string>("ForkPath")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Hash")
                         .IsRequired()
                         .HasMaxLength(128)

@@ -14,6 +14,7 @@ import ProfileModal from "./ProfileModal";
 import ContactsModal from "./ContactsModal";
 import { useNavigate } from 'react-router-dom';
 import api from "./api";
+import { FaFolderOpen } from "react-icons/fa";
 
 const MOCK_ROOMS = [
   { id: "r1", title: "Проект 2025" },
@@ -157,10 +158,14 @@ export default function Dashboard({ onLogout }) {
           <div className="col-md-3">
             <div className={`card shadow h-100 ${cardBgClass}`}>
               <div className="card-header bg-transparent d-flex align-items-center justify-content-between">
-                <span className="fw-bold">Мои комнаты</span>
-                  <Link to="/rooms/create" className="btn btn-success btn-sm">
-                      <FaPlus className="me-1" /> Комната
+                <div className="d-flex gap-2">
+                  <Link to="/room-manager" className="btn btn-primary btn-sm">
+                    <FaFolderOpen className="me-1" /> Мои комнаты
                   </Link>
+                  <Link to="/rooms/create" className="btn btn-success btn-sm">
+                    <FaPlus className="me-1" /> Комната
+                  </Link>
+                </div>
               </div>
               <ul className="list-group list-group-flush">
                 {rooms.length === 0 && (

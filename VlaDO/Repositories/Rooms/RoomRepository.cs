@@ -11,6 +11,9 @@ namespace VlaDO.Repositories;
 /// </summary>
 public class RoomRepository : GenericRepository<Room>, IRoomRepository
 {
+    private static readonly HashSet<string> SystemRoomTitles = new(StringComparer.OrdinalIgnoreCase) {
+        "Архив"
+    };
     public RoomRepository(DocumentFlowContext context) : base(context) { }
 
     public async Task AddUserToRoomAsync(Guid roomId, Guid userId, AccessLevel level)
@@ -93,5 +96,45 @@ public class RoomRepository : GenericRepository<Room>, IRoomRepository
             .Distinct()
             .ToListAsync();
     }
+    public async Task<bool> ExistsWithTitleAsync(Guid ownerId, string title)
+    {
+        var lowerTitle = title.ToLowerInvariant();
 
+        var rooms = await _context.Rooms
+            .Where(r => r.OwnerId == ownerId && r.Title != null)
+            .Select(r => r.Title!)
+            .ToListAsync();
+
+        return rooms.Any(t => string.Equals(t, title, StringComparison.OrdinalIgnoreCase));
+    }
+    public async Task<List<RoomWithAccessDto>> GetOwnedRoomsAsync(Guid userId)
+    {
+        return await _context.Rooms
+            .Where(r => r.OwnerId == userId && !SystemRoomTitles.Contains(r.Title ?? ""))
+            .Select(r => new RoomWithAccessDto(
+                r.Id,
+                r.Title ?? "(без названия)",
+                null,
+                "Full"
+            ))
+            .ToListAsync();
+    }
+
+    public async Task<List<RoomWithAccessDto>> GetForeignRoomsAsync(Guid userId)
+    {
+        var ownedRoomIds = await _context.Rooms
+            .Where(r => r.OwnerId == userId)
+            .Select(r => r.Id)
+            .ToListAsync();
+
+        return await _context.RoomUsers
+            .Where(ru => ru.UserId == userId && !ownedRoomIds.Contains(ru.RoomId))
+            .Select(ru => new RoomWithAccessDto(
+                ru.RoomId,
+                ru.Room.Title,
+                null,
+                ru.AccessLevel.ToString()
+            ))
+            .ToListAsync();
+    }
 }

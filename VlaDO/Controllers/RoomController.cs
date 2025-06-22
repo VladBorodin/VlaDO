@@ -42,9 +42,17 @@ public class RoomController : ControllerBase
         return Ok(list);
     }
     [HttpPost]
+    //  POST api/rooms
+    [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateRoomDto dto)
     {
         var userId = User.GetUserId();
+
+        if (!string.IsNullOrWhiteSpace(dto.Title) &&
+            await _uow.Rooms.ExistsWithTitleAsync(userId, dto.Title))
+        {
+            return Conflict(new { message = "Комната с таким названием уже существует." });
+        }
 
         var room = new Room
         {
@@ -52,7 +60,6 @@ public class RoomController : ControllerBase
             Title = dto.Title,
             OwnerId = userId
         };
-
         await _uow.Rooms.AddAsync(room);
 
         var ownerRecord = new RoomUser
@@ -64,8 +71,10 @@ public class RoomController : ControllerBase
         await _uow.RoomUsers.AddAsync(ownerRecord);
 
         await _uow.CommitAsync();
+
         return Ok(room.Id);
     }
+
     [HttpGet("my")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> GetMyRooms()
@@ -93,6 +102,14 @@ public class RoomController : ControllerBase
         var userId = User.GetUserId();
         var rooms = await _uow.Rooms.SearchRoomsAsync(userId, filter.Title, filter.RoomId, filter.Since);
         return Ok(rooms);
+    }
+    [HttpGet("grouped")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> GetGroupedRooms()
+    {
+        var userId = User.GetUserId();
+        var grouped = await _svc.GetGroupedRoomsAsync(userId);
+        return Ok(grouped);
     }
 
 }

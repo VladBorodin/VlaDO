@@ -1,6 +1,7 @@
 ﻿using System.IO.Compression;
 using System.Reflection.Emit;
 using VlaDO.DTOs;
+using VlaDO.Helpers;
 using VlaDO.Models;
 using VlaDO.Repositories;
 using VlaDO.Repositories.Documents;
@@ -37,7 +38,8 @@ public class DocumentService : IDocumentService
             Data = data,
             RoomId = roomId,
             CreatedBy = userId,
-            Hash = Sha256(data)
+            Hash = Sha256(data),
+            ForkPath = await DocumentVersionHelper.GenerateInitialForkPathAsync(Docs, userId)
         };
 
         await Docs.AddAsync(doc);
@@ -71,6 +73,8 @@ public class DocumentService : IDocumentService
         await newFile.CopyToAsync(ms);
         var bytes = ms.ToArray();
 
+        var (nextVersion, nextForkPath) = await DocumentVersionHelper.GenerateNextVersionAsync(Docs, parent);
+
         var newDoc = new Document
         {
             Name = newFile.FileName,
@@ -78,7 +82,8 @@ public class DocumentService : IDocumentService
             Note = note,
             RoomId = roomId,
             CreatedBy = userId,
-            Version = parent.Version + 1,
+            Version = nextVersion,
+            ForkPath = nextForkPath,
             ParentDocId = parent.Id,
             PrevHash = parent.Hash,
             Hash = Sha256(bytes)
@@ -135,8 +140,16 @@ public class DocumentService : IDocumentService
 
         var docs = await Docs.FindAsync(d => d.RoomId == roomId);
 
-        return docs.Select(d => new DocumentInfoDto(d.Id,d.Name,d.Version,
-            d.ParentDocId,d.Hash,d.PrevHash,d.CreatedOn,d.Note
+        return docs.Select(d => new DocumentInfoDto(
+            d.Id,
+            d.Name,
+            d.Version,
+            d.ParentDocId,
+            d.Hash,
+            d.PrevHash,
+            d.CreatedOn,
+            d.Note,
+            d.ForkPath
         ));
     }
 

@@ -44,9 +44,9 @@ namespace VlaDO.Controllers
                 await _uow.CommitAsync();
             }
 
-            var versions = await _uow.DocumentRepository.GetVersionChainAsync(docId);
+            var forkBranch = await _uow.DocumentRepository.GetForkBranchAsync(docId);
 
-            foreach (var version in versions)
+            foreach (var version in forkBranch)
             {
                 version.RoomId = archiveRoom.Id;
 

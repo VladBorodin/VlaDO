@@ -18,8 +18,18 @@ export default function LoginForm({ theme, onLogin }) {
       const { data } = await api.post("/auth/login", { email, password });
       const token = data.token;
       sessionStorage.setItem("token", token);
+
+      const base64Payload = token.split('.')[1];
+      const jsonPayload = atob(base64Payload);
+      const payload = JSON.parse(jsonPayload);
+      const userId = payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"];
+
+      if (userId) {
+        sessionStorage.setItem("userId", userId);
+      }
+
       onLogin(token);
-	  navigate("/", { replace: true });
+      navigate("/", { replace: true });
     } catch (err) {
       setError("Неверные данные или ошибка сети.");
       setLoading(false);

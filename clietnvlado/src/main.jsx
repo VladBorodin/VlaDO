@@ -9,6 +9,9 @@ import { AlertProvider } from "./contexts/AlertContext";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./index.css";
 
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AlertProvider>

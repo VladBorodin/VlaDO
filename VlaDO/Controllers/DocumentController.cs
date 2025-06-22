@@ -6,6 +6,7 @@ using VlaDO.Models;
 using VlaDO.Repositories;
 using VlaDO.Repositories.Documents;
 using VlaDO.Services;
+using VlaDO.Helpers;
 
 namespace VlaDO.Controllers;
 
@@ -124,7 +125,7 @@ public class DocumentController : ControllerBase
         {
             "own" => await _docRepo.GetByCreatorAsync(userId),
             "otherDoc" => await _docRepo.GetOtherAccessibleDocsAsync(userId),
-            "lastupdate" => await _docRepo.GetLatestVersionsForUserAsync(userId),
+            "lastupdate" => await _docRepo.GetLatestVersionsByForkPathAsync(userId),
             "userDoc" => await _docRepo.GetByCreatorAsync(userId),
             "all" => await _docRepo.GetAccessibleToUserAsync(userId),
             "archived" => await _docRepo.GetArchivedForUserAsync(userId),
@@ -138,9 +139,8 @@ public class DocumentController : ControllerBase
             var user = await _uow.Users.GetBriefByIdAsync(doc.CreatedBy);
 
             RoomBriefDto? roomDto = null;
-            string accessLevel;                     // ← будет заполнено ниже
+            string accessLevel;
 
-            // ───── Определяем комнату (если есть) ─────
             if (doc.RoomId is Guid roomId)
             {
                 var room = doc.Room ?? await _uow.Rooms.GetByIdAsync(roomId);
@@ -148,17 +148,16 @@ public class DocumentController : ControllerBase
                 roomDto = new RoomBriefDto(room.Id, room.Title, lastChange);
             }
 
-            // ───── Определяем уровень доступа ─────
-            if (doc.CreatedBy == userId)            // ①  Моё – всегда Full
+            if (doc.CreatedBy == userId)
             {
                 accessLevel = "Full";
             }
-            else if (doc.RoomId is Guid roomId2)    // ②  Комната
+            else if (doc.RoomId is Guid roomId2)
             {
                 accessLevel = (await _perm
                     .GetAccessLevelAsync(userId, roomId2)).ToString();
             }
-            else                                    // ③  Публичный токен (если есть)
+            else
             {
                 var tok = await _uow.Tokens
                     .FirstOrDefaultAsync(t => t.DocumentId == doc.Id && t.UserId == userId);
@@ -176,7 +175,8 @@ public class DocumentController : ControllerBase
                 CreatedBy = user!,
                 Room = roomDto,
                 PreviousVersionId = doc.ParentDocId,
-                AccessLevel = accessLevel
+                AccessLevel = accessLevel,
+                ForkPath = doc.ForkPath
             });
         }
 
@@ -188,24 +188,10 @@ public class DocumentController : ControllerBase
     {
         var userId = User.GetUserId();
 
-        // 1. Получаем документ, чтобы проверить доступ
         var doc = await _docRepo.GetByIdAsync(docId);
         if (doc == null)
             return NotFound();
 
-        // 2. Проверка доступа
-        if (doc.RoomId != null)
-        {
-            var hasAccess = await _perm.CheckAccessAsync(userId, doc.RoomId.Value, AccessLevel.Read);
-            if (!hasAccess)
-                return Forbid();
-        }
-        else if (doc.CreatedBy != userId)
-        {
-            return Forbid();
-        }
-
-        // 3. Получаем цепочку версий
         var versions = await _docRepo.GetVersionChainAsync(docId);
 
         var dtoList = versions.Select(d => new DocumentInfoDto(
@@ -216,7 +202,8 @@ public class DocumentController : ControllerBase
             d.Hash,
             d.PrevHash,
             d.CreatedOn,
-            d.Note
+            d.Note,
+            d.ForkPath
         ));
 
         return Ok(dtoList);
@@ -233,7 +220,8 @@ public class DocumentController : ControllerBase
             CreatedOn = DateTime.UtcNow,
             Note = dto.Note,
             RoomId = dto.RoomId,
-            Version = 1 // потом можем апдейтить
+            Version = 1,
+            ForkPath = await DocumentVersionHelper.GenerateInitialForkPathAsync(_uow.Documents, userId)
         };
 
         if (dto.File != null)
@@ -454,27 +442,33 @@ public class DocumentController : ControllerBase
     [HttpGet("/api/documents/{docId:guid}/meta")]
     public async Task<IActionResult> GetMeta(Guid docId)
     {
-        var userId = User.GetUserId();
         var doc = await _uow.Documents.GetByIdAsync(docId);
-        if (doc == null) return NotFound();
+        if (doc is null) return NotFound();
 
-        if (doc.RoomId is Guid roomId)
-        {
-            var hasAccess = await _perm.CheckAccessAsync(userId, roomId, AccessLevel.Read);
-            if (!hasAccess) return Forbid();
-        }
-        else if (doc.CreatedBy != userId)
-        {
-            return Forbid();
-        }
+        var note = await GetNoteAsync(docId);
+        var uid = User.GetUserId();
+        var allowed = await _perm.CheckAccessAsync(uid, docId, AccessLevel.Read);
+        if (!allowed) return Forbid();
 
         var dto = new DocumentMetaDto(
             doc.Id,
             doc.Name,
             doc.Version,
             doc.Data?.LongLength ?? 0,
-            System.IO.Path.GetExtension(doc.Name).Trim('.').ToLowerInvariant());
+            Path.GetExtension(doc.Name).Trim('.').ToLowerInvariant(),
+            doc.Room?.Title,
+            (await _uow.Users.GetBriefByIdAsync(doc.CreatedBy))?.Name,
+            doc.CreatedBy,
+            doc.CreatedOn,
+            note,
+            doc.ForkPath
+        );
 
         return Ok(dto);
+    }
+    private async Task<string?> GetNoteAsync(Guid docId)
+    {
+        var doc = await _uow.Documents.FirstOrDefaultAsync(d => d.Id == docId);
+        return doc?.Note;
     }
 }

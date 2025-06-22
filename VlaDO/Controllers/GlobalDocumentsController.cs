@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using VlaDO.DTOs;
 using VlaDO.Extensions;
+using VlaDO.Helpers;
 using VlaDO.Models;
 using VlaDO.Repositories;
 
@@ -29,7 +30,8 @@ namespace VlaDO.Controllers
                 CreatedOn = DateTime.UtcNow,
                 Note = dto.Note,
                 RoomId = null,
-                Version = 1
+                Version = 1,
+                ForkPath = string.Empty
             };
 
             if (dto.File != null)
@@ -38,6 +40,7 @@ namespace VlaDO.Controllers
                 await dto.File.CopyToAsync(ms);
                 doc.Data = ms.ToArray();
                 doc.Hash = ComputeHash(doc.Data);
+                doc.ForkPath = await DocumentVersionHelper.GenerateInitialForkPathAsync(_uow.Documents, userId);
             }
 
             await _uow.Documents.AddAsync(doc);
@@ -68,6 +71,8 @@ namespace VlaDO.Controllers
             await file.CopyToAsync(ms);
             var bytes = ms.ToArray();
 
+            var (nextVersion, nextForkPath) = await DocumentVersionHelper.GenerateNextVersionAsync(_uow.Documents, parent);
+
             var child = new Document
             {
                 Name = file.FileName,
@@ -75,7 +80,8 @@ namespace VlaDO.Controllers
                 Note = note,
                 CreatedBy = userId,
                 CreatedOn = DateTime.UtcNow,
-                Version = parent.Version + 1,
+                Version = nextVersion,
+                ForkPath = nextForkPath,
                 ParentDocId = parent.Id,
                 PrevHash = parent.Hash,
                 Hash = ComputeHash(bytes)

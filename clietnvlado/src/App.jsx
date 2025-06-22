@@ -12,6 +12,7 @@ import CreateRoomPage from "./CreateRoomPage";
 import RoomPage from "./RoomPage";
 import CreateDocumentPage from './CreateDocumentPage';
 import UpdateDocumentPage from "./UpdateDocumentPage";
+import RoomManagerPage from "./RoomManagerPage";
 
 export default function App() {
   const [token, setToken] = useState(() =>
@@ -74,6 +75,8 @@ export default function App() {
           path="/rooms/:id"
           element={token ? <RoomPage /> : <Navigate to="/login" replace />}
         />
+
+        <Route path="/room-manager" element={<RoomManagerPage />} />
 
         <Route
           path="/forgot-password"

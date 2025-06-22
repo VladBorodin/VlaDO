@@ -17,5 +17,8 @@ namespace VlaDO.Repositories.Rooms
         Task<IEnumerable<RoomBriefDto>> GetRecentAsync(Guid userId, int take = 3);
         Task<IEnumerable<RoomBriefDto>> SearchRoomsAsync(Guid userId, string? title = null, Guid? roomId = null, DateTime? since = null);
         Task<IEnumerable<Room>> GetByUserAsync(Guid userId);
+        Task<bool> ExistsWithTitleAsync(Guid ownerId, string title);
+        Task<List<RoomWithAccessDto>> GetOwnedRoomsAsync(Guid userId);
+        Task<List<RoomWithAccessDto>> GetForeignRoomsAsync(Guid userId);
     }
 }
