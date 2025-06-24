@@ -3,30 +3,35 @@
 import { useState, useEffect } from "react";
 import { FaSun, FaMoon, FaArrowLeft, FaPlus } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import api from "./api"; // ваш axios-обёртка
-import { AccessLevelOptions } from "./constants"; 
-// AccessLevelOptions — массив для выпадающего списка ролей (см. ниже)
+import api from "./api";
+import { AccessLevelOptions } from "./constants";
+import LoadingSpinner from "./LoadingSpinner";
 
 export default function CreateRoomPage() {
   const navigate = useNavigate();
 
-  // Тема (light / dark)
   const [theme, setTheme] = useState(
     () => localStorage.getItem("theme") || "light"
   );
+  
   useEffect(() => {
-    document.body.className =
-      theme === "dark" ? "bg-dark text-light" : "bg-light text-dark";
-    localStorage.setItem("theme", theme);
+    document.body.classList.toggle("dark", theme === "dark");
+    document.body.classList.toggle("light", theme !== "dark");
   }, [theme]);
 
-  // Состояния формы
+  setTimeout(() => {
+    setFadeOut(true);
+    setTimeout(() => setIsLoading(false), 400);
+  }, 100);
+
   const [title, setTitle] = useState("");
-  const [defaultAccess, setDefaultAccess] = useState(""); // выбор из AccessLevelOptions
+  const [defaultAccess, setDefaultAccess] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Обработка сабмита формы
+  const [isLoading, setIsLoading] = useState(true);
+  const [fadeOut, setFadeOut] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -40,7 +45,6 @@ export default function CreateRoomPage() {
     }
     setLoading(true);
     try {
-      // Предполагаем, что бэк-энд принимает { title, defaultAccessLevel }
       await api.post("/rooms", {
         title,
         defaultAccessLevel: Number(defaultAccess),
@@ -56,6 +60,14 @@ export default function CreateRoomPage() {
     }
     setLoading(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${theme === "dark" ? "bg-dark" : "bg-light"}`}>
+        <LoadingSpinner size={200} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-vh-100 d-flex flex-column">

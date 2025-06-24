@@ -5,6 +5,7 @@ using VlaDO.Extensions;
 using VlaDO.Helpers;
 using VlaDO.Models;
 using VlaDO.Repositories;
+using VlaDO.Services;
 
 namespace VlaDO.Controllers
 {
@@ -14,8 +15,13 @@ namespace VlaDO.Controllers
     public class GlobalDocumentsController : ControllerBase
     {
         private readonly IUnitOfWork _uow;
+        private readonly IActivityLogger _logger;
 
-        public GlobalDocumentsController(IUnitOfWork uow) => _uow = uow;
+        public GlobalDocumentsController(IUnitOfWork uow, IActivityLogger logger)
+        {
+            _uow = uow;
+            _logger = logger;
+        }
 
         [HttpPost]
         public async Task<IActionResult> UploadWithoutRoom([FromForm] CreateDocumentDto dto)
@@ -29,9 +35,7 @@ namespace VlaDO.Controllers
                 CreatedBy = userId,
                 CreatedOn = DateTime.UtcNow,
                 Note = dto.Note,
-                RoomId = null,
-                Version = 1,
-                ForkPath = string.Empty
+                RoomId = null
             };
 
             if (dto.File != null)
@@ -40,14 +44,41 @@ namespace VlaDO.Controllers
                 await dto.File.CopyToAsync(ms);
                 doc.Data = ms.ToArray();
                 doc.Hash = ComputeHash(doc.Data);
-                doc.ForkPath = await DocumentVersionHelper.GenerateInitialForkPathAsync(_uow.Documents, userId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(dto.PrevHash))
+            {
+                var parent = await _uow.Documents.FirstOrDefaultAsync(d =>
+                    d.Hash == dto.PrevHash &&
+                    d.RoomId == null &&
+                    d.CreatedBy == userId);
+
+                if (parent != null)
+                {
+                    doc.ParentDocId = parent.Id;
+                    doc.PrevHash = parent.Hash;
+
+                    (doc.Version, doc.ForkPath) = await DocumentVersionHelper.GenerateNextVersionAsync(_uow.Documents, parent);
+                }
+            }
+
+            if (string.IsNullOrEmpty(doc.ForkPath))
+            {
+                doc.Version = 1;
+                doc.ForkPath = await DocumentVersionHelper.SafeGenerateInitialForkPathAsync(_uow.Documents, userId, Guid.Empty);
             }
 
             await _uow.Documents.AddAsync(doc);
             await _uow.CommitAsync();
 
+            await _logger.LogAsync(ActivityType.CreatedDocument,
+                authorId: userId,
+                subjectId: doc.Id,
+                meta: new { doc.Name });
+
             return Ok(doc.Id);
         }
+
 
         private static string ComputeHash(byte[] data)
         {
@@ -89,6 +120,13 @@ namespace VlaDO.Controllers
 
             await _uow.Documents.AddAsync(child);
             await _uow.CommitAsync();
+
+            await _logger.LogAsync(
+                ActivityType.UpdatedDocument,
+                authorId: userId,
+                subjectId: child.Id,
+                meta: new { child.Name, child.Version, ForkPath = child.ForkPath }
+            );
 
             return Ok(child.Id);
         }

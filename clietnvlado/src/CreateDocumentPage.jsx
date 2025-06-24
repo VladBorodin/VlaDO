@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { FaPlus, FaMoon, FaSun, FaArrowLeft } from "react-icons/fa";
 import { useNavigate, Link } from "react-router-dom";
 import api from "./api";
+import LoadingSpinner from "./LoadingSpinner";
 
 export default function CreateDocumentPage() {
   const [rooms, setRooms] = useState([]);
@@ -14,6 +15,7 @@ export default function CreateDocumentPage() {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef();
   const navigate = useNavigate();
+  const [prevHash, setPrevHash] = useState("");
   const [darkMode, setDarkMode] = useState(() => 
     localStorage.getItem("theme") === "dark" ||
     (window.matchMedia("(prefers-color-scheme: dark)").matches &&
@@ -21,10 +23,15 @@ export default function CreateDocumentPage() {
   );
   const [dragActive, setDragActive] = useState(false);
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [fadeOut, setFadeOut] = useState(false);
+
   useEffect(() => {
     api.get("/rooms/my").then(r => {
     console.log("Rooms response:", r);
     if (Array.isArray(r.data)) setRooms(r.data);
+    setFadeOut(true);
+    setTimeout(() => setIsLoading(false), 400);
   }).catch(err => {
     console.error("Ошибка при загрузке комнат:", err.response?.status, err.response?.data);
   });
@@ -57,16 +64,24 @@ export default function CreateDocumentPage() {
     setLoading(true);
 
     try {
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      const hashBuffer = await crypto.subtle.digest("SHA-256", uint8Array);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hexHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+      setPrevHash(hexHash);
       const form = new FormData();
       form.append("file", file);
       form.append("name", name); // обязательно
       if (note) form.append("note", note);
       if (parentId) form.append("parentDocId", parentId);
+      if (prevHash) form.append("prevHash", prevHash);
 
       let endpoint = "/documents"; // ✅ без /api
       if (roomId) {
         form.append("roomId", roomId);
-        endpoint = `/rooms/${roomId}/docs`;
+        endpoint = `/rooms/${roomId}/docs/create`;
       }
 
       await api.post(endpoint, form);
@@ -78,8 +93,15 @@ export default function CreateDocumentPage() {
     } finally {
       setLoading(false);
     }
-};
+  };
 
+  if (isLoading) {
+    return (
+      <div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${darkMode ? "bg-dark" : "bg-light"}`}>
+        <LoadingSpinner size={200} />
+      </div>
+    );
+  }
   return (
     <div className="container mt-4">
       <div className="card shadow-sm">

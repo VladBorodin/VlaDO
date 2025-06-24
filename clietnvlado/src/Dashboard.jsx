@@ -1,77 +1,138 @@
 import { useState, useEffect } from "react";
-import {
-  FaMoon,
-  FaSun,
-  FaSignOutAlt,
-  FaBell,
-  FaPlus,
-  FaFolder,
-  FaUserCircle,
-  FaAddressBook
-} from "react-icons/fa";
+import {FaMoon,FaSun,FaSignOutAlt,FaBell,FaPlus,FaFolder,FaUserCircle,FaAddressBook} from "react-icons/fa";
 import { Link } from "react-router-dom";
 import ProfileModal from "./ProfileModal";
 import ContactsModal from "./ContactsModal";
 import { useNavigate } from 'react-router-dom';
 import api from "./api";
 import { FaFolderOpen } from "react-icons/fa";
-
-const MOCK_ROOMS = [
-  { id: "r1", title: "Проект 2025" },
-  { id: "r2", title: "Личное" },
-  { id: "r3", title: "Общий архив" }
-];
-const MOCK_DOCS = [
-  { id: "d1", name: "Договор.pdf", room: MOCK_ROOMS[0], updatedAt: "2025-05-30" },
-  { id: "d2", name: "Заявка.xlsx", room: MOCK_ROOMS[1], updatedAt: "2025-05-28" }
-];
-const MOCK_ACTIVITY = [
-  { id: 1, date: "2025-05-30", description: "Добавлен документ 'Договор.pdf'" },
-  { id: 2, date: "2025-05-29", description: "Создана новая комната 'Проект 2025'" },
-  { id: 3, date: "2025-05-29", description: "Вас пригласили в комнату 'Общий архив'" }
-];
+import Notifications from "./Notifications";
+import LoadingSpinner from "./LoadingSpinner";
 
 export default function Dashboard({ onLogout }) {
-    const [showProfile, setShowProfile] = useState(false);
-    const [showContacts, setShowContacts] = useState(false);
-    const [user, setUser] = useState(null);
-    const [theme, setTheme] = useState(() =>
-        localStorage.getItem("theme") || "light"
-    );
-    const [selectedRoom, setSelectedRoom] = useState(MOCK_ROOMS[0]);
-    const [rooms] = useState(MOCK_ROOMS);
-    const [documents] = useState(MOCK_DOCS);
-    const [activities] = useState(MOCK_ACTIVITY);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showContacts, setShowContacts] = useState(false);
+  const [user, setUser] = useState(null);
+  const [theme, setTheme] = useState(() =>
+      localStorage.getItem("theme") || "light"
+  );
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [activities,setActivities] = useState([]);
 
-    const navigate = useNavigate();
+  const [showNotifications, setShowNotifications] = useState(false);
 
-    useEffect(() => {
-      document.body.className = theme === "dark" ? "dark" : "light";
-    }, [theme]);
-    
-    useEffect(() => {
-      const loadMe = async () => {
-        try {
-          const { data } = await api.get("/users/getMe");
-          setUser(data);
-        } catch (e) {
-          console.error("Не удалось получить профиль", e);
-        }
-      };
-      loadMe();
-    }, []);
+  const navigate = useNavigate();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    document.body.className =
-      theme === "dark" ? "bg-dark text-light" : "bg-light text-dark";
-    localStorage.setItem("theme", theme);
+    const loadMe = async () => {
+      try {
+        const { data } = await api.get("/users/getMe");
+        setUser(data);
+      } catch (e) {
+        console.error("Не удалось получить профиль", e);
+      } finally {
+        setFadeOut(true);
+        setTimeout(() => setIsLoading(false), 500);
+      }
+    };
+    loadMe();
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("dark", theme === "dark");
+    document.body.classList.toggle("light", theme !== "dark");
   }, [theme]);
 
-  // Helper for card background
-  const cardBgClass =
-    theme === "dark"
-      ? "bg-dark bg-gradient text-light"
-      : "bg-white text-dark";
+  useEffect(() => {
+  if (!user) return;
+  const load = async () => {
+    try {
+      const [{ data: docs },
+            { data: acts },
+            { data: rms }] = await Promise.all([
+        api.get("/documents", { params:{ type:"lastupdate" } }),
+        api.get("/activity",  { params:{ top:10 } }),
+        api.get("/rooms/last-active", { params:{ top:10 } })
+      ]);
+
+      docs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      setDocuments(docs.slice(0, 10));
+      setRooms(rms);
+      setSelectedRoom(rms[0] ?? null);
+    } catch(e){ 
+      console.error("Не удалось загрузить дашборд", e); 
+    } finally {
+      setIsLoading(false); // ⬅️ вот здесь
+    }
+  };
+  load();
+}, [user]);
+
+  useEffect(() => {
+    api.get("/activity/dashboard?top=10").then(r => {
+      if (Array.isArray(r.data)) setActivities(r.data);
+    });
+  }, []);
+
+  const cardBgClass = theme === "dark" ? "bg-dark bg-gradient text-light" : "bg-white text-dark";
+
+  function formatActivity(activity) {
+    const { type, meta, createdAt } = activity;
+    const dt = new Date(createdAt).toLocaleString();
+
+    switch (type) {
+      case "CreatedDocument":
+        return `Документ создан: ${meta?.Name ?? "(без названия)"}`;
+      case "UpdatedDocument":
+        return `Обновление документа: ${meta?.Name ?? ""}`;
+      case "DeletedDocument":
+        return `Документ удалён: ${meta?.Name ?? ""}`;
+      case "RenamedDocument":
+        return `Переименован: ${meta?.OldName} → ${meta?.NewName}`;
+      case "ArchivedDocument":
+        return `Архивирован документ: ${meta?.Name ?? ""}`;
+
+      case "IssuedToken":
+        return `Выдан доступ к документу`;
+      case "UpdatedToken":
+        return `Изменён доступ к документу`;
+      case "RevokedToken":
+        return `Отозван доступ к документу`;
+
+      case "CreatedRoom":
+        return `Создана комната: ${meta?.RoomTitle ?? ""}`;
+      case "InvitedToRoom":
+        return `Приглашение в комнату: ${meta?.RoomTitle ?? ""}`;
+      case "UpdatedRoomAccess":
+        return `Изменён доступ в комнату: ${meta?.RoomTitle ?? ""}`;
+      case "DeletedRoom":
+        return `Удалена комната: ${meta?.RoomTitle ?? ""}`;
+
+      case "InvitedToContacts":
+        return `Запрос на добавление в контакты`;
+      case "AcceptedContact":
+        return `Контакт принят`;
+      case "DeclinedContact":
+        return `Контакт отклонён`;
+
+      default:
+        return "Неизвестная активность";
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${theme === "dark" ? "bg-dark" : "bg-light"}`}>
+        <LoadingSpinner size={200} />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -120,13 +181,16 @@ export default function Dashboard({ onLogout }) {
               <FaAddressBook size={22}/>
             </button>
 
-            <button
-              className="btn btn-link"
-              title="Уведомления"
-              style={{ color: theme === "dark" ? "#ccc" : "#333" }}
-            >
-              <FaBell size={20} />
-            </button>
+            <Notifications
+              theme={theme}
+              isOpen={showNotifications}
+              onToggle={() => setShowNotifications(prev => !prev)}
+              onActivitiesRead={(ids) =>
+                setActivities(prev => prev.map(a =>
+                  ids.includes(a.id) ? { ...a, isRead: true } : a
+                ))
+              }
+            />
             <button
               className="btn btn-link"
               title="Переключить тему"
@@ -169,25 +233,15 @@ export default function Dashboard({ onLogout }) {
               </div>
               <ul className="list-group list-group-flush">
                 {rooms.length === 0 && (
-                  <li className="list-group-item text-muted text-center">
-                    Нет комнат
-                  </li>
+                  <li className="list-group-item text-muted text-center">Нет комнат</li>
                 )}
-                {rooms.map((room) => (
-                  <li
-                    key={room.id}
-                    className={`list-group-item ${
-                      selectedRoom?.id === room.id
-                        ? "active"
-                        : theme === "dark"
-                        ? "dark-list-item"
-                        : ""
-                    }`}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => setSelectedRoom(room)}
-                  >
-                    <FaFolder className="me-2" />
-                    {room.title}
+                {rooms.map(r => (
+                  <li key={r.id}
+                      className={`list-group-item ${selectedRoom?.id === r.id ? "active" : ""}`}
+                      style={{cursor:"pointer"}}
+                      onClick={() => setSelectedRoom(r)}>
+                      <FaFolder className="me-2" />
+                      {r.title}
                   </li>
                 ))}
               </ul>
@@ -206,17 +260,21 @@ export default function Dashboard({ onLogout }) {
                   </Link>
               </div>
               <div className="card-body">
-                {activities.length === 0 && (
-                  <div className="text-muted text-center py-3">
-                    Нет активности
-                  </div>
+                {activities.length > 0 ? (
+                  activities.map(a => (
+                    <div key={a.id}>{/* ... */}</div>
+                  ))
+                ) : (
+                  <div className="text-center text-muted">Нет активности</div>
                 )}
                 <ul className="list-group list-group-flush">
-                  {activities.map((act) => (
-                    <li key={act.id} className="list-group-item">
+                  {activities.map(a => (
+                    <li key={a.id} className="list-group-item">
                       <div className="d-flex justify-content-between">
-                        <span>{act.description}</span>
-                        <span className="text-muted small">{act.date}</span>
+                        <span>{formatActivity(a)}</span>
+                        <span className="text-muted small">
+                          {new Date(a.createdAt).toLocaleDateString()}
+                        </span>
                       </div>
                     </li>
                   ))}
@@ -241,11 +299,12 @@ export default function Dashboard({ onLogout }) {
                   </div>
                 )}
                 <ul className="list-group list-group-flush">
-                  {documents.map((doc) => (
-                    <li key={doc.id} className="list-group-item">
-                      <div className="fw-medium">{doc.name}</div>
+                  {documents.map(d => (
+                    <li key={d.id} className="list-group-item">
+                      <div className="fw-medium">{d.name}</div>
                       <div className="small text-muted">
-                        {doc.room?.title} | Изменен: {doc.updatedAt}
+                        {(d.room?.title || "-")} | Изменён:{" "}
+                        {new Date(d.createdAt).toLocaleDateString()}
                       </div>
                     </li>
                   ))}

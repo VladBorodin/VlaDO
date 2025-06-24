@@ -214,9 +214,12 @@ function renderViewer(extension, blob, url, meta, theme, canEdit, setFileBlob, o
 
   // картинки
   if (["jpg","jpeg","png","gif"].includes(extension)) {
+    const blob = new Blob([document.data], { type: document.mimeType });
+    const imgUrl = URL.createObjectURL(blob);
+
     return (
-      <div className={`preview-container ${theme === "dark" ? "preview-dark" : ""}`}>
-        <img className="img-fluid" src={url} alt={meta.name} />
+      <div className="img-wrapper">
+        <img className="preview-img" src={url} alt={meta.name} />
       </div>
     );
   }

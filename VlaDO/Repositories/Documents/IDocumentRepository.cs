@@ -1,4 +1,5 @@
-﻿using VlaDO.Models;
+﻿using VlaDO.DTOs;
+using VlaDO.Models;
 
 namespace VlaDO.Repositories.Documents
 {
@@ -16,5 +17,6 @@ namespace VlaDO.Repositories.Documents
         Task<IEnumerable<Document>> GetArchivedForUserAsync(Guid userId);
         Task<List<Document>> GetForkBranchAsync(Guid docId);
         Task<IEnumerable<Document>> GetLatestVersionsByForkPathAsync(Guid userId);
+        Task<IEnumerable<RoomBriefDto>> GetLastActiveRoomsAsync(Guid userId, int top = 3);
     }
 }

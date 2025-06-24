@@ -65,4 +65,26 @@ public class PermissionService : IPermissionService
 
         return ru?.AccessLevel ?? AccessLevel.Read;
     }
+    public async Task<List<Guid>> GetRoomsWithAccessAsync(Guid userId, AccessLevel minLevel)
+    {
+        var owned = await _uow.Rooms.FindAsync(r => r.OwnerId == userId);
+        var invited = await _uow.RoomUsers
+                               .FindAsync(ru => ru.UserId == userId && ru.AccessLevel >= minLevel);
+
+        return owned.Select(r => r.Id)
+                    .Concat(invited.Select(ru => ru.RoomId))
+                    .Distinct()
+                    .ToList();
+    }
+
+    public async Task<List<Guid>> GetDocsWithAccessAsync(Guid userId, AccessLevel minLevel)
+    {
+        var ownDocs = await _uow.Documents.FindAsync(d => d.CreatedBy == userId);
+
+        var roomIds = await GetRoomsWithAccessAsync(userId, minLevel);
+        var roomDocs = await _uow.Documents.FindAsync(d => d.RoomId != null &&
+                                                           roomIds.Contains(d.RoomId!.Value));
+
+        return ownDocs.Concat(roomDocs).Select(d => d.Id).Distinct().ToList();
+    }
 }

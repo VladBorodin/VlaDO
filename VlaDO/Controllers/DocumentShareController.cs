@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using System;
 using VlaDO.DTOs;
 using VlaDO.Extensions;
 using VlaDO.Models;
@@ -14,10 +16,13 @@ public class DocumentTokenController : ControllerBase
 {
     private readonly IUnitOfWork _uow;
     private readonly IPermissionService _perm;
-    public DocumentTokenController(IUnitOfWork uow, IPermissionService perm)
+    private readonly IActivityLogger _logger;
+    private IGenericRepository<Document> Docs => _uow.Documents;
+    public DocumentTokenController(IUnitOfWork uow, IPermissionService perm, IActivityLogger logger)
     {
         _uow = uow;
         _perm = perm;
+        _logger = logger;
     }
 
     // ───────── список всех «шаров» ─────────
@@ -43,6 +48,7 @@ public class DocumentTokenController : ControllerBase
     [HttpPost("token")]
     public async Task<IActionResult> Upsert(Guid docId, [FromBody] UpdateAccessDto dto)
     {
+        var authorId = User.GetUserId();
         if (!await _perm.CheckAccessAsync(User.GetUserId(), docId, AccessLevel.Full))
             return Forbid();
 
@@ -52,6 +58,9 @@ public class DocumentTokenController : ControllerBase
 
         if (tok == null)
         {
+            var doc = await Docs.GetByIdAsync(docId)
+                  ?? throw new KeyNotFoundException();
+
             tok = new DocumentToken
             {
                 DocumentId = docId,
@@ -60,12 +69,29 @@ public class DocumentTokenController : ControllerBase
                 AccessLevel = dto.AccessLevel,
                 ExpiresAt = DateTime.UtcNow.AddYears(5)
             };
+
             await _uow.Tokens.AddAsync(tok);
+
+            await _logger.LogAsync(
+                ActivityType.IssuedToken,
+                authorId: authorId,
+                subjectId: tok.Id,
+                meta: new { doc.Name },
+                toUserId: dto.UserId
+            );
         }
         else
         {
             tok.AccessLevel = dto.AccessLevel;
         }
+
+        await _logger.LogAsync(
+            ActivityType.UpdatedToken,
+            authorId: authorId,
+            subjectId: tok.Id,
+            meta: new { tok.Document.Name },
+            toUserId: dto.UserId
+        );
 
         await _uow.CommitAsync();
         return Ok();
@@ -75,8 +101,28 @@ public class DocumentTokenController : ControllerBase
     [HttpDelete("token/{tokenId:guid}")]
     public async Task<IActionResult> Delete(Guid docId, Guid tokenId)
     {
+        var authorId = User.GetUserId();
+
+        var doc = await _uow.Documents.GetByIdAsync(docId);
+        if (doc == null) return NotFound();
+
+        if (!await _perm.CheckAccessAsync(authorId, docId, AccessLevel.Full))
+            return Forbid();
+
+        var tok = await _uow.Tokens.GetByIdAsync(tokenId);
+        if (tok == null || tok.DocumentId != docId)
+            return NotFound();
+
         if (!await _perm.CheckAccessAsync(User.GetUserId(), docId, AccessLevel.Full))
             return Forbid();
+
+        await _logger.LogAsync(
+            ActivityType.RevokedToken,
+            authorId: authorId,
+            subjectId: tokenId,
+            meta: new { doc.Name },
+            toUserId: tok.UserId
+        );
 
         await _uow.Tokens.DeleteAsync(tokenId);
         await _uow.CommitAsync();
@@ -99,11 +145,24 @@ public class DocumentTokenController : ControllerBase
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> DeleteByUser(Guid docId, Guid userId)
     {
+        var authorId = User.GetUserId();
+
+        var doc = await _uow.Documents.GetByIdAsync(docId);
+        if (doc == null) return NotFound();
+
         var token = await _uow.Tokens
             .FirstOrDefaultAsync(t => t.DocumentId == docId && t.UserId == userId);
 
         if (token == null)
             return NotFound();
+
+        await _logger.LogAsync(
+            ActivityType.RevokedToken,
+            authorId: authorId,
+            subjectId: token.Id,
+            meta: new { doc.Name },
+            toUserId: token.UserId
+        );
 
         await _uow.Tokens.DeleteAsync(token.Id);
         await _uow.CommitAsync();

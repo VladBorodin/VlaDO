@@ -69,6 +69,19 @@ namespace VlaDO.Repositories
         {
             return await _set.AnyAsync(predicate);
         }
-
+        public Task DeleteAsync(T entity)
+        {
+            _set.Remove(entity);
+            return Task.CompletedTask;
+        }
+        public Task DeleteRangeAsync(IEnumerable<T> entities)
+        {
+            _set.RemoveRange(entities);
+            return Task.CompletedTask;
+        }
+        public async Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate)
+        {
+            return await _set.AnyAsync(predicate);
+        }
     }
 }

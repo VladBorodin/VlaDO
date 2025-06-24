@@ -12,7 +12,8 @@ namespace VlaDO.Models
         /// </summary>
         public Guid OwnerId { get; set; }
         public User Owner { get; set; } = null!;
-
+        [Required] 
+        public int AccessLevel { get; set; }
         /// <summary>
         /// Название комнаты (необязательно, но удобно в UI)
         /// </summary>

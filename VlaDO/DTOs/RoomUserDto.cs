@@ -1,4 +1,5 @@
-﻿using VlaDO.Models;
+﻿using System.ComponentModel.DataAnnotations;
+using VlaDO.Models;
 
 namespace VlaDO.DTOs
 {

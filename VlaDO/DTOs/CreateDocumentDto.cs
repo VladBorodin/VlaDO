@@ -6,5 +6,6 @@
         public string? Note { get; set; }
         public Guid? RoomId { get; set; }
         public IFormFile? File { get; set; }
+        public string? PrevHash { get; set; }
     }
 }

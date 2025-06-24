@@ -361,3 +361,18 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# ───── Custom ignores ─────
+# SQLite / локальные базы
+*.db
+
+# React build artifacts
+clietnvlado/dist/
+clietnvlado/build/
+
+# Логи и временные файлы
+*.log
+*.tmp
+
+# Элементы IDE и редакторов
+.vscode/

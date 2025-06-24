@@ -1,5 +1,4 @@
-﻿// VlaDO/Controllers/PasswordController.cs
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using VlaDO.DTOs;
 using VlaDO.Services;
 using VlaDO.Repositories;
@@ -16,17 +15,13 @@ namespace VlaDO.Controllers
         private readonly IPasswordResetService _prService;
         private readonly IConfiguration _config;
 
-        public PasswordController(
-            IUnitOfWork uow,
-            IPasswordResetService prService,
-            IConfiguration config)
+        public PasswordController(IUnitOfWork uow, IPasswordResetService prService, IConfiguration config)
         {
             _uow = uow;
             _prService = prService;
             _config = config;
         }
 
-        // POST api/password/forgot
         [HttpPost("forgot")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto dto)
         {
@@ -84,28 +79,24 @@ namespace VlaDO.Controllers
             return Ok(new { message = "Письмо для сброса пароля отправлено" });
         }
 
-        // POST api/password/reset
         [HttpPost("reset")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
-{
-    if (dto.NewPassword != dto.ConfirmPassword)
-        return BadRequest(new { error = "Пароли не совпадают" });
+        {
+            if (dto.NewPassword != dto.ConfirmPassword)
+                return BadRequest(new { error = "Пароли не совпадают" });
 
-    // Проверяем валидность токена
-    if (!await _prService.ValidatePasswordResetTokenAsync(dto.Token, dto.UserId))
-        return BadRequest(new { error = "Недействительный или просроченный токен" });
+            if (!await _prService.ValidatePasswordResetTokenAsync(dto.Token, dto.UserId))
+                return BadRequest(new { error = "Недействительный или просроченный токен" });
 
-    // Ищем пользователя
-    var user = await _uow.Users.GetByIdAsync(dto.UserId);
-    if (user == null)
-        return NotFound(new { error = "Пользователь не найден" });
+            var user = await _uow.Users.GetByIdAsync(dto.UserId);
+            if (user == null)
+                return NotFound(new { error = "Пользователь не найден" });
 
-    // Обновляем пароль — используем UpdateAsync, не Update
-    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
-    await _uow.Users.UpdateAsync(user);
-    await _uow.CommitAsync();
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            await _uow.Users.UpdateAsync(user);
+            await _uow.CommitAsync();
 
-    return Ok(new { message = "Пароль успешно сброшен" });
-}
+            return Ok(new { message = "Пароль успешно сброшен" });
+        }
     }
 }

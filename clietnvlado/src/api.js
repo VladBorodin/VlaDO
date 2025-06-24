@@ -1,18 +1,28 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "/api", // если нужен полный адрес: http://localhost:5223/api
+  baseURL: "/api",
 });
 
-// Перехватчик: подставляем токен ко всем запросам
-api.interceptors.request.use((config) => {
-  // Можно выбирать между localStorage/sessionStorage — смотри, где ты хранишь токен
-  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+api.interceptors.request.use(config => {
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token");
+
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      sessionStorage.clear();
+      localStorage.removeItem("token");
+      window.location.replace("/login?expired=1");
+    }
+    return Promise.reject(error);
+  }
+);
 
 export async function uploadDocument({ roomId, file, parentDocId, note }) {
   const formData = new FormData();

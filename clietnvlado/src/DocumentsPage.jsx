@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "./api";
 import { useAlert } from "./contexts/AlertContext"
 import DocumentPreviewModal from "./DocumentPreviewModal";
+import LoadingSpinner from "./LoadingSpinner";
 
 export default function DocumentsPage() {
   const navigate = useNavigate();
@@ -36,6 +37,8 @@ export default function DocumentsPage() {
   const [versionTreeData, setVersionTreeData] = useState(null);
   const [showTreeModal, setShowTreeModal] = useState(false);
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [fadeOut, setFadeOut] = useState(false);
 
   const loadUsers = async () => {
     if (users.length) return;
@@ -97,27 +100,15 @@ export default function DocumentsPage() {
   );
   
   useEffect(() => {
-    document.body.className = theme === "dark" ? "dark" : "light";
+    document.body.classList.toggle("dark", theme === "dark");
+    document.body.classList.toggle("light", theme !== "dark");
   }, [theme]);
 
-  const cardBg = thm =>
-    thm === "dark"
-      ? "bg-dark bg-gradient text-light"
-      : "bg-white text-dark";
+  const cardBg = thm => thm === "dark" ? "bg-dark bg-gradient text-light" : "bg-white text-dark";
 
-  const modalContentStyle = thm =>
-    thm === "dark"
-      ? { background: "#1e1e1e", color: "#f8f9fa" }
-      : {};
+  const modalContentStyle = thm => thm === "dark" ? { background: "#1e1e1e", color: "#f8f9fa" } : {};
 
-  const modalBodyClass = thm =>
-    thm === "dark" ? "bg-dark text-light" : "bg-light text-dark";
-
-  useEffect(() => {
-      document.body.className =
-        theme === "dark" ? "bg-dark text-light" : "bg-light text-dark";
-      localStorage.setItem("theme", theme);
-    }, [theme]);
+    const modalBodyClass = thm =>thm === "dark" ? "bg-dark text-light" : "bg-light text-dark";
 
     const tabs = [
       { key: "lastupdate", label: "Все актуальные" },
@@ -161,6 +152,8 @@ export default function DocumentsPage() {
         if (Array.isArray(res.data)) {
           setDocuments(res.data);
         }
+        setFadeOut(true);
+        setTimeout(() => setIsLoading(false), 400);
       })
       .catch((err) => {
         console.error("Ошибка при загрузке документов:", err);
@@ -496,6 +489,14 @@ export default function DocumentsPage() {
   ];
 
   const allowedKeys = accessMatrix[selectedDoc?.accessLevel] || [];
+
+  if (isLoading) {
+    return (
+      <div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${theme === "dark" ? "bg-dark" : "bg-light"}`}>
+        <LoadingSpinner size={200} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-vh-100 d-flex flex-column">

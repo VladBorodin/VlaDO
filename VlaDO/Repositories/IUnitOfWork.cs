@@ -15,5 +15,7 @@ namespace VlaDO.Repositories
         IGenericRepository<PasswordResetToken> PasswordResetTokens { get; }
         Task<int> CommitAsync(); 
         IDocumentRepository DocumentRepository { get; }
+        IGenericRepository<Activity> Activities { get; }
+        Task<int> CommitAsync(CancellationToken ct = default);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pipelines.Sockets.Unofficial.Buffers;
 using VlaDO.DTOs;
 using VlaDO.DTOs.Room;
 using VlaDO.Extensions;
@@ -14,7 +15,14 @@ public class RoomController : ControllerBase
 {
     private readonly IRoomService _svc;
     private readonly IUnitOfWork _uow;
-    public RoomController(IRoomService s, IUnitOfWork u) { _svc = s; _uow = u; }
+    private readonly IActivityLogger _logger;
+
+    public RoomController(IRoomService s, IUnitOfWork u, IActivityLogger l) 
+    { 
+        _svc = s; 
+        _uow = u; 
+        _logger = l;
+    }
 
     [HttpPost("{roomId:guid}/users")]
     public async Task<IActionResult> AddUser(Guid roomId, [FromBody] AddUserToRoomDto dto)
@@ -22,8 +30,20 @@ public class RoomController : ControllerBase
         var ownerId = User.GetUserId();
         if (!await _uow.Rooms.IsRoomOwnerAsync(roomId, ownerId)) return Forbid();
 
+        var room = await _uow.Rooms.GetByIdAsync(roomId);
+        var user = await _uow.Users.GetBriefByIdAsync(ownerId);
+
         await _svc.AddUserAsync(roomId, dto.UserId, dto.AccessLevel);
         await _uow.CommitAsync();
+
+        await _logger.LogAsync(
+            ActivityType.InvitedToRoom,
+            authorId: ownerId,
+            subjectId: roomId,
+            meta: new { RoomTitle = room.Title, UserName = user.Name },
+            toUserId: dto.UserId
+        );
+
         return Ok();
     }
 
@@ -42,8 +62,6 @@ public class RoomController : ControllerBase
         return Ok(list);
     }
     [HttpPost]
-    //  POST api/rooms
-    [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateRoomDto dto)
     {
         var userId = User.GetUserId();
@@ -58,7 +76,8 @@ public class RoomController : ControllerBase
         {
             Id = Guid.NewGuid(),
             Title = dto.Title,
-            OwnerId = userId
+            OwnerId = userId,
+            AccessLevel = (int)(dto.DefaultAccessLevel)
         };
         await _uow.Rooms.AddAsync(room);
 
@@ -71,6 +90,13 @@ public class RoomController : ControllerBase
         await _uow.RoomUsers.AddAsync(ownerRecord);
 
         await _uow.CommitAsync();
+
+        await _logger.LogAsync(
+            ActivityType.CreatedRoom,
+            authorId: userId,
+            subjectId: room.Id,
+            meta: new { RoomTitle = room.Title }
+        );
 
         return Ok(room.Id);
     }
@@ -111,5 +137,120 @@ public class RoomController : ControllerBase
         var grouped = await _svc.GetGroupedRoomsAsync(userId);
         return Ok(grouped);
     }
+    [HttpPatch("{roomId:guid}/rename")]
+    public async Task<IActionResult> Rename(Guid roomId, [FromBody] RenameDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            return BadRequest("Новое имя не может быть пустым");
 
+        var userId = User.GetUserId();
+        var room = await _uow.Rooms.GetByIdAsync(roomId);
+        if (room == null) return NotFound();
+
+        if (room.OwnerId != userId) return Forbid();
+
+        room.Title = dto.Name.Trim();
+        await _uow.CommitAsync();
+
+        return Ok(room.Id);
+    }
+    [HttpDelete("{roomId:guid}")]
+    public async Task<IActionResult> DeleteRoom(Guid roomId)
+    {
+        var userId = User.GetUserId();
+
+        var room = await _uow.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
+        if (room == null) return NotFound();
+        if (room.OwnerId != userId) return Forbid();
+
+        var docs = await _uow.Documents.FindAsync(d => d.RoomId == roomId);
+        int count = 0;
+        foreach (var d in docs)
+        {
+            var toks = await _uow.Tokens.FindAsync(t => t.DocumentId == d.Id);
+            await _uow.Tokens.DeleteRangeAsync(toks);
+            await _uow.Documents.DeleteAsync(d);
+            count++;
+        }
+
+        var rus = await _uow.RoomUsers.FindAsync(ru => ru.RoomId == roomId);
+
+        await _logger.LogAsync(
+            ActivityType.DeletedRoom,
+            authorId: userId,
+            subjectId: roomId,
+            meta: new { RoomTitle = room.Title, Count = count }
+        );
+
+        await _uow.RoomUsers.DeleteRangeAsync(rus);
+
+        await _uow.Rooms.DeleteAsync(room);
+
+        await _uow.CommitAsync();
+        return NoContent();
+    }
+    [HttpPatch("{roomId:guid}/users/{userId:guid}")]
+    public async Task<IActionResult> UpdateUser(Guid roomId, Guid userId,
+                                            [FromBody] UpdateRoomUserDto dto)
+    {
+        var ownerId = User.GetUserId();
+        if (!await _uow.Rooms.IsRoomOwnerAsync(roomId, ownerId)) return Forbid();
+
+        await _uow.Rooms.UpdateUserAccessLevelAsync(roomId, userId, dto.AccessLevel);
+        await _uow.CommitAsync();
+        return Ok();
+    }
+
+    [HttpDelete("{roomId:guid}/users/{userId:guid}")]
+    public async Task<IActionResult> RemoveUser(Guid roomId, Guid userId)
+    {
+        var ownerId = User.GetUserId();
+        if (!await _uow.Rooms.IsRoomOwnerAsync(roomId, ownerId)) return Forbid();
+
+        await _uow.Rooms.RemoveUserFromRoomAsync(roomId, userId);
+        await _uow.CommitAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("{roomId:guid}/users")]
+    public async Task<IActionResult> RemoveAllUsers(Guid roomId)
+    {
+        var ownerId = User.GetUserId();
+        if (!await _uow.Rooms.IsRoomOwnerAsync(roomId, ownerId)) return Forbid();
+
+        var others = await _uow.RoomUsers.FindAsync(ru => ru.RoomId == roomId &&
+                                                          ru.UserId != ownerId);
+        await _uow.RoomUsers.DeleteRangeAsync(others);
+        await _uow.CommitAsync();
+        return NoContent();
+    }
+    [HttpPatch("{roomId:guid}/access-level")]
+    public async Task<IActionResult> UpdateAccessLevel(Guid roomId,
+    [FromBody] UpdateRoomUserDto dto)
+    {
+        var ownerId = User.GetUserId();
+        var room = await _uow.Rooms.GetByIdAsync(roomId);
+        if (room == null) return NotFound();
+        if (room.OwnerId != ownerId) return Forbid();
+
+        room.AccessLevel = (int)dto.AccessLevel;
+        await _uow.CommitAsync();
+
+        await _logger.LogAsync(
+            ActivityType.UpdatedRoomAccess,
+            authorId: ownerId,
+            subjectId: roomId,
+            meta: new { RoomTitle = room.Title }
+        );
+
+        return Ok(room.AccessLevel);
+    }
+    
+    [HttpGet("last-active")]
+    public async Task<IActionResult> GetLastActive([FromQuery] int top = 10)
+    {
+        var uid = User.GetUserId();
+        var rooms = await _uow.DocumentRepository.GetLastActiveRoomsAsync(uid, top);
+        return Ok(rooms);
+    }
 }

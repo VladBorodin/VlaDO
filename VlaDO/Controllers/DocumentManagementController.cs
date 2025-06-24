@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System;
 using VlaDO.Extensions;
 using VlaDO.Models;
 using VlaDO.Repositories;
@@ -13,11 +14,13 @@ namespace VlaDO.Controllers
     {
         private readonly IUnitOfWork _uow;
         private readonly IPermissionService _perm;
+        private readonly IActivityLogger _logger;
 
-        public DocumentManagementController(IUnitOfWork uow, IPermissionService perm)
+        public DocumentManagementController(IUnitOfWork uow, IPermissionService perm, IActivityLogger logger)
         {
             _uow = uow;
             _perm = perm;
+            _logger = logger;
         }
 
         [HttpPost("{docId:guid}/archive")]
@@ -32,23 +35,18 @@ namespace VlaDO.Controllers
             var archiveRoom = await _uow.Rooms
                 .FirstOrDefaultAsync(r => r.Title == "Архив" && r.OwnerId == userId);
 
-            if (archiveRoom == null)
-            {
-                archiveRoom = new Room
-                {
-                    Id = Guid.NewGuid(),
-                    Title = "Архив",
-                    OwnerId = userId
-                };
-                await _uow.Rooms.AddAsync(archiveRoom);
-                await _uow.CommitAsync();
-            }
-
             var forkBranch = await _uow.DocumentRepository.GetForkBranchAsync(docId);
 
             foreach (var version in forkBranch)
             {
                 version.RoomId = archiveRoom.Id;
+
+                await _logger.LogAsync(
+                    ActivityType.ArchivedDocument,
+                    authorId: userId,
+                    subjectId: version.Id,
+                    meta: new { version.Name, version.Version, version.ForkPath }
+                );
 
                 var tokens = await _uow.Tokens.FindAsync(t =>
                     t.DocumentId == version.Id &&

@@ -3,6 +3,7 @@ import { FaPlus, FaMoon, FaSun, FaArrowLeft } from "react-icons/fa";
 import { useNavigate, Link, useParams, useLocation } from "react-router-dom";
 import { useAlert } from "./contexts/AlertContext";
 import api from "./api";
+import LoadingSpinner from "./LoadingSpinner";
 
 export default function UpdateDocumentPage() {
   const { id: routeId }  = useParams();
@@ -31,13 +32,18 @@ export default function UpdateDocumentPage() {
   const [dragActive, setDragActive] = useState(false);
   const { push } = useAlert();
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [fadeOut, setFadeOut] = useState(false);
+
   useEffect(() => {
     alerts.forEach(m => push(m, "warning"));
   }, [alerts]);
 
   useEffect(() => {
     api.get("/rooms/my").then(r => {
-    if (Array.isArray(r.data)) setRooms(r.data);
+      if (Array.isArray(r.data)) setRooms(r.data);
+      setFadeOut(true);
+      setTimeout(() => setIsLoading(false), 400);
     }).catch(err => {
       console.error("Ошибка при загрузке комнат:", err.response?.status, err.response?.data);
     });
@@ -139,6 +145,13 @@ export default function UpdateDocumentPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${darkMode ? "bg-dark" : "bg-light"}`}>
+        <LoadingSpinner size={200} />
+      </div>
+    );
+  }
 
   return (
     <div className="container mt-4">

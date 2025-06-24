@@ -1,6 +1,6 @@
 import { useState } from "react";
 import api from "./api";
-import { FaSpinner } from "react-icons/fa";
+import { FaSpinner, FaEye, FaEyeSlash } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function LoginForm({ theme, onLogin }) {
@@ -9,6 +9,7 @@ export default function LoginForm({ theme, onLogin }) {
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -55,7 +56,7 @@ export default function LoginForm({ theme, onLogin }) {
 
       <div className="form-floating mb-3">
         <input
-          type="password"
+          type={showPwd ? "text" : "password"}
           id="loginPassword"
           className={`form-control ${
             theme === "dark" ? "bg-secondary text-light border-0" : ""
@@ -66,6 +67,15 @@ export default function LoginForm({ theme, onLogin }) {
           required
         />
         <label htmlFor="loginPassword">Пароль</label>
+
+        <button type="button"
+                className="btn btn-link position-absolute top-50 end-0 translate-middle-y
+                          text-decoration-none p-0 me-2"
+                tabIndex={-1}
+                onClick={()=>setShowPwd(p=>!p)}
+                aria-label={showPwd?"Скрыть пароль":"Показать пароль"}>
+          {showPwd ? <FaEyeSlash/> : <FaEye/>}
+        </button>
       </div>
 
       {error && <div className="alert alert-danger py-2">{error}</div>}

@@ -20,6 +20,8 @@ namespace VlaDO.Repositories
         Task DeleteAsync(Guid id);
         Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate);
         Task<bool> AnyAsync(Expression<Func<T, bool>> predicate);
-
+        Task DeleteAsync(T entity);
+        Task DeleteRangeAsync(IEnumerable<T> entities);
+        Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate);
     }
 }

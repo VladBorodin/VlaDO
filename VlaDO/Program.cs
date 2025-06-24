@@ -8,11 +8,15 @@ using VlaDO.Repositories;
 using VlaDO.Repositories.Documents;
 using VlaDO.Repositories.Rooms;
 using VlaDO.Services;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ─────────────────────────────────────────────── infrastructure
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(opt =>
+{
+    opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -40,6 +44,7 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoomRepository, RoomRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 
 // ─────────────────────────────────────────────── business layer
@@ -49,6 +54,9 @@ builder.Services.AddScoped<IRoomService, RoomService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IShareService, ShareService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddHostedService<PasswordResetCleanupService>();
+builder.Services.AddScoped<IActivityLogger, ActivityLogger>();
+builder.Services.AddScoped<IActivityReadService, ActivityReadService>();
 
 // ─────────────────────────────────────────────── JWT authentication
 var jwtKey = builder.Configuration["Jwt:Key"]!;

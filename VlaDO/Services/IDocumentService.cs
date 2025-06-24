@@ -13,5 +13,6 @@ namespace VlaDO.Services
         Task<IEnumerable<DocumentInfoDto>> ListAsync(Guid roomId, Guid userId);
         Task DeleteAsync(Guid docId, Guid userId); 
         Task<IEnumerable<Document>> GetByRoomAndUserAsyncExcludeCreator(Guid userId);
+        Task<Guid> RenameAsync(Guid docId, Guid userId, string newName);
     }
 }

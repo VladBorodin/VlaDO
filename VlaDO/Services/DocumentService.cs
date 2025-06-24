@@ -1,4 +1,5 @@
-﻿using System.IO.Compression;
+﻿using Microsoft.Extensions.Logging;
+using System.IO.Compression;
 using System.Reflection.Emit;
 using VlaDO.DTOs;
 using VlaDO.Helpers;
@@ -13,19 +14,17 @@ public class DocumentService : IDocumentService
     private readonly IUnitOfWork _uow;
     private readonly IPermissionService _perm;
     private readonly IDocumentRepository _docRepo;
-
-    public DocumentService(IUnitOfWork uow)
-    {
-        _docRepo = uow.DocumentRepository;
-    }
+    private readonly IActivityLogger _logger;
 
     private IGenericRepository<Document> Docs => _uow.Documents;
     private IGenericRepository<Room> Rooms => _uow.Rooms;
 
-    public DocumentService(IUnitOfWork uow, IPermissionService perm)
+    public DocumentService(IUnitOfWork uow, IPermissionService perm, IActivityLogger logger)
     {
         _uow = uow;
         _perm = perm;
+        _docRepo = uow.DocumentRepository;
+        _logger = logger;
     }
 
     public async Task<Guid> UploadAsync(Guid roomId, Guid userId, string name, byte[] data)
@@ -39,11 +38,12 @@ public class DocumentService : IDocumentService
             RoomId = roomId,
             CreatedBy = userId,
             Hash = Sha256(data),
-            ForkPath = await DocumentVersionHelper.GenerateInitialForkPathAsync(Docs, userId)
+            ForkPath = await DocumentVersionHelper.SafeGenerateInitialForkPathAsync(Docs, userId, roomId)
         };
 
         await Docs.AddAsync(doc);
         await _uow.CommitAsync();
+        await _logger.LogAsync(ActivityType.CreatedDocument, authorId: userId, subjectId: doc.Id, meta: new { doc.Name, RoomId = roomId });
         return doc.Id;
     }
 
@@ -91,6 +91,14 @@ public class DocumentService : IDocumentService
 
         await Docs.AddAsync(newDoc);
         await _uow.CommitAsync();
+
+        await _logger.LogAsync(
+            ActivityType.UpdatedDocument,
+            authorId: userId,
+            subjectId: newDoc.Id,
+            meta: new { newDoc.Name, newDoc.Version, ForkPath = newDoc.ForkPath }
+        );
+
         return newDoc.Id;
     }
 
@@ -105,7 +113,6 @@ public class DocumentService : IDocumentService
     {
         var docs = await Docs.FindAsync(d => ids.Contains(d.Id));
 
-        // проверяем доступ
         foreach (var d in docs)
             await EnsureRoomAndAccess(d.RoomId!.Value, userId, AccessLevel.Read);
 
@@ -122,7 +129,6 @@ public class DocumentService : IDocumentService
         return (ms.ToArray(), "documents.zip");
     }
 
-    // HELPERS
     private static string Sha256(byte[] bytes) =>
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
 
@@ -157,13 +163,61 @@ public class DocumentService : IDocumentService
     {
         var doc = await Docs.GetByIdAsync(docId)
                   ?? throw new KeyNotFoundException();
-        await EnsureRoomAndAccess(doc.RoomId!.Value, userId, AccessLevel.Full);
+
+        if (doc.RoomId.HasValue)
+        {
+            await EnsureRoomAndAccess(doc.RoomId.Value, userId, AccessLevel.Full);
+        }
+        else
+        {
+            if (doc.CreatedBy != userId)
+                throw new UnauthorizedAccessException("Недостаточно прав");
+        }
+
+        await _logger.LogAsync(
+            ActivityType.DeletedDocument,
+            authorId: userId,
+            subjectId: docId,
+            meta: new { doc.Name }
+        );
+
+        var tokens = await _uow.Tokens.FindAsync(t => t.DocumentId == docId);
+        foreach (var tok in tokens)
+            await _uow.Tokens.DeleteAsync(tok.Id);
+
         await Docs.DeleteAsync(docId);
-        await _uow.CommitAsync();
     }
+
     public async Task<IEnumerable<Document>> GetByRoomAndUserAsyncExcludeCreator(Guid userId)
     {
         return await _docRepo.GetByRoomAndUserAsyncExcludeCreator(userId);
     }
+    public async Task<Guid> RenameAsync(Guid docId, Guid userId, string newName)
+    {
+        var doc = await Docs.GetByIdAsync(docId)
+              ?? throw new KeyNotFoundException("Документ не найден");
 
+        if (doc.RoomId.HasValue)
+        {
+            await EnsureRoomAndAccess(doc.RoomId.Value, userId, AccessLevel.Edit);
+        }
+        else
+        {
+            if (doc.CreatedBy != userId)
+                throw new UnauthorizedAccessException("Недостаточно прав");
+        }
+
+        var oldName = doc.Name;
+        doc.Name = newName.Trim();
+        await _uow.CommitAsync();
+
+        await _logger.LogAsync(
+            ActivityType.RenamedDocument,
+            authorId: userId,
+            subjectId: docId,
+            meta: new { OldName = oldName, NewName = doc.Name }
+        );
+
+        return docId;
+    }
 }

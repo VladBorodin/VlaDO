@@ -7,6 +7,7 @@
         long Size,
         string Extension,
         string? RoomTitle,
+        Guid? RoomId,
         string CreatedBy,
         Guid CreatedById,
         DateTime? CreatedAt,

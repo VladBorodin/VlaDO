@@ -17,6 +17,60 @@ namespace VlaDO.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.3");
 
+            modelBuilder.Entity("VlaDO.Models.Activity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AuthorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PayloadJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("RoomId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Activities");
+                });
+
+            modelBuilder.Entity("VlaDO.Models.ActivityRead", b =>
+                {
+                    b.Property<Guid>("ActivityId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ActivityId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ActivityReads");
+                });
+
             modelBuilder.Entity("VlaDO.Models.Document", b =>
                 {
                     b.Property<Guid>("Id")
@@ -140,6 +194,9 @@ namespace VlaDO.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("AccessLevel")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("TEXT");
 
@@ -149,7 +206,8 @@ namespace VlaDO.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OwnerId");
+                    b.HasIndex("OwnerId", "Title")
+                        .IsUnique();
 
                     b.ToTable("Rooms");
                 });
@@ -208,11 +266,33 @@ namespace VlaDO.Migrations
                     b.Property<Guid>("ContactId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("UserId", "ContactId");
 
                     b.HasIndex("ContactId");
 
                     b.ToTable("UserContact");
+                });
+
+            modelBuilder.Entity("VlaDO.Models.ActivityRead", b =>
+                {
+                    b.HasOne("VlaDO.Models.Activity", "Activity")
+                        .WithMany()
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("VlaDO.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Activity");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("VlaDO.Models.Document", b =>

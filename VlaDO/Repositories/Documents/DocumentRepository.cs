@@ -34,21 +34,45 @@ namespace VlaDO.Repositories
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<RoomBriefDto>> GetLastActiveRoomsAsync(Guid userId, int top = 3)
+        public async Task<IEnumerable<RoomBriefDto>> GetLastActiveRoomsAsync(Guid userId, int top = 10)
         {
-            var q =
-                from d in _context.Documents
-                where d.CreatedBy == userId && d.RoomId != null
-                group d by d.RoomId into g
-                let last = g.Max(x => x.CreatedOn)
-                orderby last descending
-                select new RoomBriefDto(
-                    g.Key!.Value,
-                    g.Select(x => x.Room!.Title).FirstOrDefault() ?? "(без названия)",
-                    last);
+            var owned = _context.Rooms
+                                .Where(r => r.OwnerId == userId)
+                                .Select(r => r.Id);
 
-            return await q.Take(top).ToListAsync();
+            var shared = _context.RoomUsers
+                                 .Where(ru => ru.UserId == userId)
+                                 .Select(ru => ru.RoomId);
+
+            var accessible = await owned.Union(shared).ToListAsync();
+
+            var lastActivity = await _context.Documents
+                .Where(d => d.RoomId != null && accessible.Contains(d.RoomId.Value))
+                .GroupBy(d => d.RoomId)
+                .Select(g => new
+                {
+                    RoomId = g.Key.Value,
+                    Last = g.Max(x => x.CreatedOn)
+                })
+                .OrderByDescending(x => x.Last)
+                .Take(top)
+                .ToListAsync();
+
+            var roomIds = lastActivity.Select(x => x.RoomId).ToList();
+
+            var roomTitles = await _context.Rooms
+                .Where(r => roomIds.Contains(r.Id))
+                .ToDictionaryAsync(r => r.Id, r => r.Title ?? "-");
+
+            var result = lastActivity
+                .Select(x => new RoomBriefDto(
+                    x.RoomId,
+                    roomTitles.TryGetValue(x.RoomId, out var title) ? title : "-",
+                    x.Last));
+
+            return result;
         }
+
         public async Task<IEnumerable<Document>> GetByRoomAndUserAsyncExcludeCreator(Guid userId)
         {
             var accessibleRoomIds = await _context.RoomUsers
@@ -78,8 +102,7 @@ namespace VlaDO.Repositories
         public async Task<IEnumerable<Document>> GetVersionChainAsync(Guid docId)
         {
             var root = await _context.Documents
-        .AsNoTracking()
-        .FirstOrDefaultAsync(d => d.Id == docId);
+                .FirstOrDefaultAsync(d => d.Id == docId);
             
                 while (root is { ParentDocId: not null })
                 root = await _context.Documents
@@ -88,15 +111,10 @@ namespace VlaDO.Repositories
             
                 if (root == null)
                         return Enumerable.Empty<Document>();
-            
-                // ── 2. Собираем «свою» ветку — все документы, для которых
-                //       root.Id входит в их восходящую цепочку ParentDocId  ────────────
-                //       (реализовано обычной рекурсией в памяти)
             var versions = new List<Document> { root };
             var queue = new Queue<Guid>();
             queue.Enqueue(root.Id);
-            
-                // выбираем ВСЕ документы, чей ParentDocId не NULL
+
             var candidates = await _context.Documents
                     .AsNoTracking()
                     .Where(d => d.ParentDocId != null)

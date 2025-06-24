@@ -4,6 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "./api";
 import { useAlert } from "./contexts/AlertContext"
 import DocumentPreviewModal from "./DocumentPreviewModal";
+import { LevelLabel, AccessLevelOptions } from "./constants";
+import LoadingSpinner from "./LoadingSpinner";
 
 
 export default function RoomManagerPage() {
@@ -22,7 +24,7 @@ export default function RoomManagerPage() {
 	const [sortField, setSortField] = useState(null);
 	const [sortDirection, setSortDirection] = useState("asc");
 	const [addRoomModal, setAddRoomModal] = useState(false);
-	const [docForRoom,   setDocForRoom] = useState(null);
+	const [docForRoom, setDocForRoom] = useState(null);
 	const [targetRoomId, setTargetRoomId] = useState(null);
 
 	const [accessModal, setAccessModal] = useState(false);
@@ -37,6 +39,23 @@ export default function RoomManagerPage() {
 	const [versionTreeData, setVersionTreeData] = useState(null);
 	const [showTreeModal, setShowTreeModal] = useState(false);
 
+	const [roomCtxVisible, setRoomCtxVisible] = useState(false);
+	const [roomCtxPos, setRoomCtxPos] = useState({x:0,y:0});
+	const [ctxRoom, setCtxRoom] = useState(null);
+
+	const [roomAccessModal, setRoomAccessModal] = useState(false);
+	const [roomForAccess , setRoomForAccess ] = useState(null);
+	const [roomShares , setRoomShares] = useState([]);
+	const [selRoomUserId , setSelRoomUserId] = useState("");
+	const [selRoomLevel , setSelRoomLevel] = useState("Read");
+
+	const [isLoading, setIsLoading] = useState(true);
+	const [fadeOut, setFadeOut] = useState(false);
+
+	const [deleteRoomModal, setDeleteRoomModal] = useState({
+		show : false,
+		room : null
+	});
 
 	const loadUsers = async () => {
 		if (users.length) return;
@@ -51,17 +70,30 @@ export default function RoomManagerPage() {
 	const [shares, setShares] = useState([]);
 
 	const ROOM_TABS = {
-			mine   : { key: "mine",   label: "Мои"   },
-			other  : { key: "other",  label: "Другие"},
+			mine : { key: "mine", label: "Мои" },
+			other : { key: "other", label: "Другие" },
 			archive: { key: "archive",label: "Архив" }
 	};
 
 	const [activeRoomTab, setActiveRoomTab] = useState(ROOM_TABS.mine.key);
-	const [roomDocuments, setRoomDocuments]   = useState([]); 
+	const [roomDocuments, setRoomDocuments] = useState([]); 
 
 	const [mineRooms, setMineRooms] = useState([]);
 	const [otherRooms, setOtherRooms] = useState([]);
-	
+
+	const [roomUsersModal, setRoomUsersModal] = useState(false);
+	const [roomUsers, setRoomUsers ] = useState([]);
+	const [usersRoomTitle, setUsersRoomTitle] = useState("");
+		
+	const [addUserModal , setAddUserModal ] = useState(false);
+	const [roomForAddUser, setRoomForAddUser] = useState(null);
+	const [newUserId , setNewUserId ] = useState("");
+	const [newUserLevel , setNewUserLevel ] = useState("Read");
+
+	const [unarchModal, setUnarchModal] = useState(false);
+	const [unarchDocs , setUnarchDocs] = useState([]);
+	const [targetRoom , setTargetRoom] = useState("");
+
 	const allRooms = useMemo(() => [...mineRooms, ...otherRooms], [mineRooms, otherRooms]);
 
 	const loadRooms = async () => {
@@ -76,13 +108,22 @@ export default function RoomManagerPage() {
 
 	useEffect(() => {
 		loadRooms();
+		setFadeOut(true);
+		setTimeout(() => setIsLoading(false), 400);
 	}, []);
 	
+	const [renameState, setRenameState] = useState({
+		show : false,
+		type : null,
+		item : null,
+		value: ""
+	});
 
 	const loadRoomDocs = async () => {
 		if (activeRoomTab === ROOM_TABS.archive.key) {
 			const { data } = await api.get("/documents?type=archived");
 			setRoomDocuments(data);
+			setDocuments(data);
 			return;
 		}
 
@@ -109,27 +150,33 @@ export default function RoomManagerPage() {
 		const s = String(al).toLowerCase();
 		return s === "edit" || s === "full";
 	};
-	const openRenameModal = () => {
-		if (!selectedDoc) return;
-		setNewName(selectedDoc.name || "");
-		setRenameModalVisible(true);
+	const openRenameModal = (type, item) => {
+		setRenameState({
+			show : true,
+			type,
+			item,
+			value: item.name || item.title || ""
+		});
 		setModalVisible(false);
+		setRoomCtxVisible(false);
 	};
 
 	const confirmRename = async () => {
-		if (!selectedDoc) return;
-
+		const {type, item, value} = renameState;
+		const name = value.trim();
 		try {
-			await api.patch(`/documents/${selectedDoc.id}/rename`, {
-				name: newName
-			});
-			setDocuments(prev => prev.map(d => d.id === selectedDoc.id ? { ...d, name: newName } : d));
-			await loadRoomDocs()
-		} catch (err) {
+			if (type === "doc") {
+				await api.patch(`/documents/${selectedDoc.id}/rename`, { name });
+				await loadRoomDocs();
+			} else {
+				await api.patch(`/rooms/${item.id}/rename`, { name });
+				await loadRooms();
+			}
+			push("Название изменено", "success");
+		} catch {
 			push("Ошибка при переименовании", "danger");
 		} finally {
-			push("Название изменено", "success");
-			setRenameModalVisible(false);
+			setRenameState(s => ({...s, show:false}));
 		}
 	};
 
@@ -137,9 +184,37 @@ export default function RoomManagerPage() {
 		() => localStorage.getItem("theme") || "light"
 	);
 	
+    useEffect(() => {
+      document.body.classList.toggle("dark", theme === "dark");
+      document.body.classList.toggle("light", theme !== "dark");
+    }, [theme]);
+		
+	const menuRef = useRef(null);
+
 	useEffect(() => {
-		document.body.className = theme === "dark" ? "dark" : "light";
-	}, [theme]);
+		if (!roomCtxVisible) return;
+
+		const handleMouseDown = (e) => {
+			if (menuRef.current && !menuRef.current.contains(e.target)) {
+				setRoomCtxVisible(false);
+			}
+		};
+
+		document.addEventListener('mousedown', handleMouseDown);
+		return () => document.removeEventListener('mousedown', handleMouseDown);
+	}, [roomCtxVisible]);
+
+	const onRoomContextMenu = (e, room) => {
+		e.preventDefault();
+		const isMine = mineRooms.some(r => r.id === room.id);
+		if (!isMine) {
+			push("Вы не можете управлять чужими комнатами", "warning");
+			return;
+		}
+		setCtxRoom(room);
+		setRoomCtxPos({x:e.pageX, y:e.pageY});
+		setRoomCtxVisible(true);
+	};
 
 	const cardBg = thm => thm === "dark" ? "bg-dark bg-gradient text-light" : "bg-white text-dark";
 
@@ -147,19 +222,30 @@ export default function RoomManagerPage() {
 
 		const modalBodyClass = thm => thm === "dark" ? "bg-dark text-light" : "bg-light text-dark";
 
-		useEffect(() => {
-				document.body.className =
-				theme === "dark" ? "bg-dark text-light" : "bg-light text-dark";
-				localStorage.setItem("theme", theme);
-		}, [theme]);
-
 		const LEVEL_VALUE = {
-				Read: 0,
-				Edit: 1,
-				Full: 2
+			Read: 0,
+			Edit: 1,
+			Full: 2
 		};
 
-		const [documents,   setDocuments]     = useState([]);
+		const saveRoomAccess = async () => {
+			if (!selRoomUserId) return;
+			if (selRoomLevel === "Close") {
+				await api.delete(`/rooms/${roomForAccess.id}/users/${selRoomUserId}`);
+			} else {
+				await api.patch(`/rooms/${roomForAccess.id}/users/${selRoomUserId}`, { accessLevel: LEVEL_VALUE[selRoomLevel] });
+			}
+			const { data } = await api.get(`/rooms/${roomForAccess.id}/users`);
+			setRoomShares(data);
+			setRoomAccessModal(false);
+		};
+
+		const closeAllAccess = async () => {
+			await api.delete(`/rooms/${roomForAccess.id}/users`);
+			setRoomAccessModal(false);
+		};
+
+		const [documents, setDocuments] = useState([]);
 		const [modalVisible, setModalVisible] = useState(false);
 		const [selectedDoc, setSelectedDoc] = useState(null);
 
@@ -172,6 +258,26 @@ export default function RoomManagerPage() {
 		setMenuPosition({ x: e.pageX, y: e.pageY });
 		setModalVisible(true);
 	};
+
+	const handleShowPrev = async prevId => {
+		try {
+			const { data } = await api.get(`/documents/${prevId}/meta`);
+
+			if (data.roomId) {
+			const isMine = mineRooms.some(r=>r.id===data.roomId);
+			setActiveRoomTab(isMine ? ROOM_TABS.mine.key : ROOM_TABS.other.key);
+			setSelectedRoomId(data.roomId);
+			} else {
+			setActiveRoomTab(ROOM_TABS.mine.key);
+			setSelectedRoomId(null);
+			}
+
+			setTimeout(()=>setSelectedRowId(prevId), 400);
+		} catch {
+			push("У вас нет прав на просмотр документа", "warning");
+		}
+	};
+
 	
 	const accessMatrix = {
 		Full: ["edit", "delete", "archive", "copy", "rename", "changeAccess", "toggleRoom", "download", "paste", "tree"],
@@ -306,6 +412,15 @@ export default function RoomManagerPage() {
 		}
 	};
 
+	const openUnarchiveModal = async () => {
+		const { data } = await api.get(`/documents/${selectedDoc.id}/versions`);
+		setUnarchDocs(data);
+		setTargetRoom("");
+		setUnarchModal(true);
+		setModalVisible(false);
+	};
+
+
 	const handleChangeAccess = async () => {
 		if (!selectedDoc) return;
 
@@ -313,7 +428,7 @@ export default function RoomManagerPage() {
 		setShares(lst);
 		await loadUsers();
 
-		setSelUser(lst[0]?.userId  ?? "");
+		setSelUser(lst[0]?.userId ?? "");
 		setSelLvl (lst[0]?.accessLevel ?? "Read");
 		setAccessModal(true);
 		setModalVisible(false);
@@ -383,6 +498,18 @@ export default function RoomManagerPage() {
 		}
 	};
 
+	const clearArchive = async () => {
+		if (!window.confirm("Вы уверены, что хотите полностью очистить архив?"))
+			return;
+		try {
+			await api.delete("/documents/archived");
+			await loadRoomDocs();
+			push("Архив очищен", "success");
+		} catch {
+			push("Не удалось очистить архив", "danger");
+		}
+	};
+
 	const handleShowVersionTree = async () => {
 		if (!selectedDoc) return;
 
@@ -410,10 +537,10 @@ export default function RoomManagerPage() {
 		setSelectedRowId(docId);
 	};
 
-	const getSortedDocuments = () => {
-		if (!sortField) return documents;
+	const getSortedDocuments = (list = documents) => {
+		if (!sortField) return list;
 
-		const sorted = [...documents].sort((a, b) => {
+		const sorted = [...list].sort((a, b) => {
 			let valA = a[sortField];
 			let valB = b[sortField];
 
@@ -456,19 +583,152 @@ export default function RoomManagerPage() {
 		return sorted;
 	};
 
-	const menuItems = [
+	const defaultMenuItems = [
 		{ key: "edit", label: "Изменить", action: handleEdit },
 		{ key: "delete", label: "Удалить", action: handleDelete },
 		{ key: "archive", label: "Архивировать", action: handleArchive },
 		{ key: "copy", label: "Копировать", action: handleCopy },
-		{ key: "rename", label: "Переименовать", action: openRenameModal },
+		{ key: "rename", label: "Переименовать", action: () => openRenameModal("doc", selectedDoc) },
 		{ key: "changeAccess", label: "Изменить доступ", action: handleChangeAccess },
 		{ key: "toggleRoom", label: selectedDoc?.room ? "Удалить из комнаты" : "Добавить в комнату", action: handleToggleRoom },
 		{ key: "download", label: "Скачать", action: handleDownload },
 		{ key: "tree", label: "Дерево версий", action: handleShowVersionTree }
 	];
 
-	const allowedKeys = accessMatrix[selectedDoc?.accessLevel] || [];
+	const confirmDeleteRoom = async () => {
+		const room = deleteRoomModal.room;
+		try {
+			await api.delete(`/rooms/${room.id}`);
+			if (room.id === selectedRoomId) setSelectedRoomId(null);
+			await loadRooms();
+			push(`Комната «${room.title}» удалена`, "success");
+		} catch {
+			push("Не удалось удалить комнату", "danger");
+		} finally {
+			setDeleteRoomModal({ show:false, room:null });
+		}
+	};
+
+	const downloadRoom = async (room) => {
+		try {
+			const { data: docs } = await api.get(`/rooms/${room.id}/docs`);
+			const ids = docs.map(d => d.id);
+
+			if (ids.length === 0) {
+			push("В комнате нет документов для скачивания", "info");
+			return;
+			}
+
+			const resp = await api.post(
+				`/rooms/${room.id}/docs/archive`,
+				{ documentIds: ids },
+				{ responseType: "blob" }
+			);
+
+			const blob = resp.data;
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `${room.title || "room"}.zip`;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+
+			push("Архив комнаты загружен", "success");
+		} catch (e) {
+			console.error(e);
+			push("Не удалось скачать архив комнаты", "danger");
+		}
+	};
+
+	const openAddUserModal = async room => {
+		await loadUsers();
+		setRoomForAddUser(room);
+		setNewUserId("");
+		setNewUserLevel("Read");
+		setAddUserModal(true);
+		setRoomCtxVisible(false);
+	};
+
+	const usersOfRoom = async room => {
+		try {
+			const { data } = await api.get(`/rooms/${room.id}/users`);
+			setRoomUsers(data);
+			setUsersRoomTitle(room.title);
+			setRoomUsersModal(true);
+			setRoomCtxVisible(false);
+		} catch {
+			push("Не удалось получить список пользователей", "danger");
+		}
+	};
+
+	const handleUnarchive = async () => {
+		try {
+			await api.patch(`/documents/${selectedDoc.id}/unarchive`);
+			push("Документ восстановлен из архива", "success");
+			await loadRoomDocs();
+		} catch {
+			push("Не удалось разархивировать", "danger");
+		} finally {
+			setModalVisible(false);
+		}
+	};
+
+	const archiveMenuItems = [
+		{ key:"unarchive", label:"Разархивировать", action: openUnarchiveModal },
+		{ key:"delete", label:"Удалить", action: handleDelete }
+	];
+
+	const handleRoomChangeAccess = async (room) => {
+		const { data } = await api.get(`/rooms/${room.id}/users`);
+		await loadUsers();
+		setRoomForAccess(room);
+		setRoomShares(data);
+		setSelRoomUserId(data[0]?.userId ?? "");
+		setSelRoomLevel(data[0]?.accessLevel ?? 0);
+		setRoomAccessModal(true);
+		setRoomCtxVisible(false);
+	};
+
+
+	const roomMenuItems = [
+		{key:"add", label:"Добавить пользователя", action:openAddUserModal},
+		{key:"list", label:"Пользователи комнаты", action:usersOfRoom},
+		{key:"access", label:"Изменить доступ", action: handleRoomChangeAccess},
+		{key:"dl", label:"Скачать", action: downloadRoom},
+		{key:"ren", label:"Переименовать", action: room => openRenameModal("room", room) },
+		{key:"del", label:"Удалить", action: room => setDeleteRoomModal({ show:true, room })}
+	];
+
+	const menuItems = activeRoomTab === ROOM_TABS.archive.key
+		? archiveMenuItems
+		: defaultMenuItems;
+
+	const confirmAddUser = async () => {
+		if (!newUserId) return;
+		try {
+			await api.post(`/rooms/${roomForAddUser.id}/users`, {
+				userId: newUserId,
+				accessLevel: LEVEL_VALUE[newUserLevel]
+			});
+			push("Пользователь добавлен", "success");
+			setAddUserModal(false);
+		} catch {
+			push("Не удалось добавить пользователя", "danger");
+		}
+	};
+
+	const allowedKeys = activeRoomTab === ROOM_TABS.archive.key ? ["unarchive", "delete"]
+    : (accessMatrix[selectedDoc?.accessLevel] || []);
+
+	if (isLoading) {
+		return (
+			<div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${theme === "dark" ? "bg-dark" : "bg-light"}`}>
+			<LoadingSpinner size={200} />
+			</div>
+		);
+	}
 
 	return (
 		<div className="min-vh-100 d-flex flex-column">
@@ -496,7 +756,7 @@ export default function RoomManagerPage() {
 								theme === "dark" ? "text-light" : "text-dark"
 							}`}
 						>
-							Менеджер документов
+							Менеджер комнат
 						</span>
 					</button>
 
@@ -525,9 +785,9 @@ export default function RoomManagerPage() {
 
 			{/* Контент */}
 			<div className="container my-4 flex-fill">
-				<div className="row g-4">
+				<div className="room-row d-flex flex-wrap gap-4">
 					{/* ЛЕВЫЙ: документы выбранной комнаты или архива */}
-					<div className="col-md-8">
+					<div className="left-pane flex-grow-1">
 						<div className={`card shadow h-100 ${cardBg(theme)}`}>
 							<div className="table-responsive">
 								<table
@@ -535,11 +795,11 @@ export default function RoomManagerPage() {
 								>
 									<thead className={theme === 'dark' ? 'table-dark' : 'table-light'}>
 										<tr>
-											<th onClick={() => handleSort('name')}     style={{ cursor: 'pointer' }}>
+											<th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
 												Название {sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
 											</th>
-											<th onClick={() => handleSort('version')}  style={{ cursor: 'pointer' }}>
-												Версия  {sortField === 'version' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+											<th onClick={() => handleSort('version')} style={{ cursor: 'pointer' }}>
+												Версия {sortField === 'version' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
 											</th>
 											<th onClick={() => handleSort('createdAt')} style={{ cursor: 'pointer' }}>
 												Дата создания {sortField === 'createdAt' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
@@ -547,7 +807,7 @@ export default function RoomManagerPage() {
 											<th onClick={() => handleSort('createdBy')} style={{ cursor: 'pointer' }}>
 												Создал {sortField === 'createdBy' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
 											</th>
-											<th onClick={() => handleSort('prev')}      style={{ cursor: 'pointer' }}>
+											<th onClick={() => handleSort('prev')} style={{ cursor: 'pointer' }}>
 												Пред. версия {sortField === 'prev' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
 											</th>
 										</tr>
@@ -585,10 +845,7 @@ export default function RoomManagerPage() {
 														{doc.previousVersionId ? (
 															<button
 																className="btn btn-link p-0"
-																onClick={(e) => {
-																	e.preventDefault();
-																	setSelectedRowId(doc.previousVersionId);
-																}}
+																onClick={() => handleShowPrev(doc.previousVersionId)}
 															>
 																Просмотр
 															</button>
@@ -606,18 +863,19 @@ export default function RoomManagerPage() {
 					</div>
 
 					{/* ПРАВЫЙ: табы + список комнат */}
-					<div className="col-md-4">
+					<div className="right-pane">
 						<div className={`card shadow h-100 ${cardBg(theme)}`}>
 							{/* табы */}
-							<ul className="nav nav-tabs">
+							<ul className="nav nav-tabs nav-fill flex-nowrap">
 								{Object.values(ROOM_TABS).map((t) => (
 									<li className="nav-item" key={t.key}>
 										<button
 											type="button"
 											className={`nav-link ${activeRoomTab === t.key ? 'active' : ''}`}
 											onClick={() => {
-												setActiveRoomTab(t.key);
-												setSelectedRoomId(null);
+												if (t.key!==activeRoomTab){
+													setActiveRoomTab(t.key);
+												}
 											}}
 										>
 											{t.label}
@@ -629,9 +887,15 @@ export default function RoomManagerPage() {
 							{/* список комнат / архив */}
 							<div className="list-group list-group-flush">
 								{activeRoomTab === ROOM_TABS.archive.key ? (
-									<div className="p-3 text-muted small">
-										Для просмотра выберите документ слева — здесь показывается содержимое архива.
-									</div>
+								<div className="p-3 d-flex flex-column align-items-center gap-3">
+									<span className="text-muted small">Полностью очистить архив.</span>
+									<button
+									className="btn btn-outline-danger"
+									style={{opacity:.8}}
+									onClick={clearArchive}>
+									Очистить
+									</button>
+								</div>
 								) : (
 									(activeRoomTab === ROOM_TABS.mine.key
 										? mineRooms
@@ -639,11 +903,11 @@ export default function RoomManagerPage() {
 									).map((r) => (
 										<button
 											key={r.id}
-											className={`list-group-item list-group-item-action ${
-												selectedRoomId === r.id ? 'active' : ''
-											}`}
-											onClick={() => setSelectedRoomId(r.id)}
-										>
+											className={`list-group-item list-group-item-action text-center
+														${selectedRoomId===r.id?'active':''}`}
+											onClick={()=>setSelectedRoomId(r.id)}
+											onContextMenu={e=>onRoomContextMenu(e,r)}
+											>
 											{r.title}
 										</button>
 									))
@@ -705,7 +969,7 @@ export default function RoomManagerPage() {
 							<div className={`modal-header ${modalBodyClass(theme)}`}>
 								<h5 className="modal-title">Копировать документ</h5>
 								<button className="btn-close"
-												onClick={()=>setCopyModalVisible(false)}/>
+									onClick={()=>setCopyModalVisible(false)}/>
 							</div>
 
 							<div className={`modal-body ${modalBodyClass(theme)}`}>
@@ -746,8 +1010,7 @@ export default function RoomManagerPage() {
 									Отмена
 								</button>
 
-								<button className="btn btn-primary"
-												onClick={confirmCopy}>
+								<button className="btn btn-primary" onClick={confirmCopy}>
 									Копировать
 								</button>
 							</div>
@@ -816,7 +1079,7 @@ export default function RoomManagerPage() {
 					setPreviewId(null);
 					loadDocs();
 				}}
-				theme={theme}   
+				theme={theme}
 				accessLevel={selectedDoc?.effectiveAccessLevel}
 				onDownload={handleDownload}
 			/>
@@ -1000,7 +1263,326 @@ export default function RoomManagerPage() {
 					</div>
 				</div>
 			)}
+
+			{roomCtxVisible && ctxRoom && (
+				<div
+					ref={menuRef}
+					style={{
+						position:'absolute',
+						top:roomCtxPos.y, left:roomCtxPos.x, zIndex:1000,
+						background: theme==="dark" ? "#1e1e1e" : "#fff",
+						color: theme==="dark" ? "#f8f9fa" : "#212529",
+						border: theme==="dark" ? "1px solid #555" : "1px solid #ccc",
+						borderRadius:6, padding:6, minWidth:220,
+						boxShadow:"0 0 10px rgba(0,0,0,.2)"
+				}}>
+					<div className="fw-bold mb-2">{ctxRoom.title}</div>
+					<div className="list-group list-group-flush">
+					{roomMenuItems.map(mi=>(
+						<button key={mi.key}
+								className="list-group-item list-group-item-action"
+								onClick={() => mi.action(ctxRoom)}>
+						{mi.label}
+						</button>
+					))}
+					</div>
+				</div>
+			)}
+
+			{renameState.show && (
+				<div className="modal fade show" style={{display:"block",background:"rgba(0,0,0,.5)"}}>
+					<div className="modal-dialog modal-dialog-centered">
+						<div className="modal-content" style={modalContentStyle(theme)}>
+							<div className={`modal-header ${modalBodyClass(theme)}`}>
+								<h5 className="modal-title">
+									Переименовать {renameState.type === "doc" ? "документ" : "комнату"}
+								</h5>
+								<button className="btn-close"
+									onClick={() => setRenameState(s => ({...s, show:false}))}/>
+							</div>
+
+						<div className={`modal-body ${modalBodyClass(theme)}`}>
+						<input className="form-control"
+								value={renameState.value}
+								onChange={e=>setRenameState(s=>({...s, value:e.target.value}))}/>
+						</div>
+
+						<div className={`modal-footer ${modalBodyClass(theme)}`}>
+						<button className="btn btn-secondary"
+								onClick={() => setRenameState(s => ({...s, show:false}))}>
+							Отмена
+						</button>
+						<button className="btn btn-primary" onClick={confirmRename}>
+							ОК
+						</button>
+						</div>
+					</div>
+					</div>
+				</div>
+			)}
+
+			{deleteRoomModal.show && (
+			<div className="modal fade show" style={{display:"block",background:"rgba(0,0,0,.5)"}}>
+				<div className="modal-dialog modal-dialog-centered">
+				<div className={`modal-content ${theme==="dark"?"bg-dark text-light":""}`}>
+					<div className="modal-header">
+					<h5 className="modal-title">Удалить комнату</h5>
+					<button className="btn-close"
+							onClick={()=>setDeleteRoomModal({show:false,room:null})}/>
+					</div>
+
+					<div className="modal-body">
+					<p className="mb-0">
+						Вы уверены, что хотите удалить комнату&nbsp;
+						<strong>«{deleteRoomModal.room.title}»</strong>
+						&nbsp;и все документы в ней?
+					</p>
+					</div>
+
+					<div className="modal-footer">
+					<button className="btn btn-secondary"
+							onClick={()=>setDeleteRoomModal({show:false,room:null})}>
+						Отмена
+					</button>
+					<button className="btn btn-danger" onClick={confirmDeleteRoom}>
+						Ок
+					</button>
+					</div>
+				</div>
+				</div>
+			</div>
+			)}
+
+			{roomAccessModal && roomForAccess && (
+				<div className="modal fade show" style={{display:"block",background:"rgba(0,0,0,.5)"}}>
+					<div className="modal-dialog modal-dialog-centered">
+						<div className="modal-content" style={modalContentStyle(theme)}>
+
+							{/* ─────────────── header ─────────────── */}
+							<div className={`modal-header ${modalBodyClass(theme)}`}>
+								<h5 className="modal-title">
+									Доступ к комнате «{roomForAccess.title}»
+								</h5>
+								<button className="btn-close" onClick={() => setRoomAccessModal(false)}/>
+							</div>
+
+							{/* ─────────────── body ─────────────── */}
+							<div className={`modal-body ${modalBodyClass(theme)}`}>
+
+								{/* текущий уровень по-умолчанию */}
+								<div className="d-flex justify-content-between mb-3">
+									<span>Текущий уровень по-умолчанию</span>
+									<span className="badge bg-info text-dark">
+										{LevelLabel[roomForAccess.defaultAccessLevel]}
+									</span>
+								</div>
+
+								{/* новый уровень */}
+								<label className="form-label">Новый уровень</label>
+								<select
+									className="form-select"
+									value={selRoomLevel}
+									onChange={e => setSelRoomLevel(Number(e.target.value))}
+								>
+									{Object.entries(LevelLabel).map(([val, txt]) => (
+										<option key={val} value={val}>{txt}</option>
+									))}
+								</select>
+
+								{/* закрыть доступ всем (кроме владельца) */}
+								<button
+									className="btn btn-outline-danger btn-sm mt-3"
+									onClick={async () => {
+										if (!window.confirm("Удалить всех участников?")) return;
+										await api.delete(`/rooms/${roomForAccess.id}/users`);
+										push("Доступ закрыт для всех", "success");
+										setRoomAccessModal(false);
+									}}
+								>
+									Закрыть доступ для всех
+								</button>
+							</div>
+
+							{/* ─────────────── footer ─────────────── */}
+							<div className={`modal-footer ${modalBodyClass(theme)}`}>
+								<button className="btn btn-secondary" onClick={() => setRoomAccessModal(false)}>
+									Отмена
+								</button>
+								<button
+									className="btn btn-primary"
+									onClick={async () => {
+										await api.patch(
+											`/rooms/${roomForAccess.id}/access-level`,
+											{ accessLevel: selRoomLevel }
+										);
+										push("Уровень доступа обновлён", "success");
+										await loadRooms();
+										setRoomAccessModal(false);
+									}}
+								>
+									ОК
+								</button>
+							</div>
+
+						</div>
+					</div>
+				</div>
+			)}
+
+			{roomUsersModal && (
+				<div className="modal fade show" style={{display:"block",background:"rgba(0,0,0,.5)"}}>
+					<div className="modal-dialog modal-dialog-centered">
+						<div className="modal-content" style={modalContentStyle(theme)}>
+
+							{/* header */}
+							<div className={`modal-header ${modalBodyClass(theme)}`}>
+								<h5 className="modal-title">
+									Пользователи комнаты «{usersRoomTitle}»
+								</h5>
+								<button className="btn-close" onClick={()=>setRoomUsersModal(false)}/>
+							</div>
+
+							{/* body */}
+							<div className={`modal-body ${modalBodyClass(theme)}`}>
+								{/* Доступ по-умолчанию */}
+								<p className="mb-2">
+									<strong>Доступ по-умолчанию:&nbsp;</strong>
+									<span className="badge bg-info text-dark">
+									{LevelLabel[
+										rooms.find(r=>r.title===usersRoomTitle)?.defaultAccessLevel ?? 0
+									]}
+									</span>
+								</p>
+
+								{/* Список участников */}
+								{roomUsers.length === 0
+									? <p className="text-muted">В комнате нет участников.</p>
+									: (
+										<ul className="list-group">
+											{roomUsers.map(u=>(
+												<li key={u.userId} className="list-group-item d-flex justify-content-between">
+													<span>{u.name}</span>
+													<span className="badge bg-secondary">{LevelLabel[u.accessLevel]}</span>
+												</li>
+											))}
+										</ul>
+									)}
+							</div>
+
+							{/* footer */}
+							<div className={`modal-footer ${modalBodyClass(theme)}`}>
+								<button className="btn btn-primary" onClick={()=>setRoomUsersModal(false)}>
+									Закрыть
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+			{addUserModal && roomForAddUser && (
+				<div className="modal fade show" style={{display:"block",background:"rgba(0,0,0,.5)"}}>
+					<div className="modal-dialog modal-dialog-centered">
+						<div className="modal-content" style={modalContentStyle(theme)}>
+
+							{/* header */}
+							<div className={`modal-header ${modalBodyClass(theme)}`}>
+								<h5 className="modal-title">
+									Добавить пользователя в «{roomForAddUser.title}»
+								</h5>
+								<button className="btn-close" onClick={()=>setAddUserModal(false)}/>
+							</div>
+
+							{/* body */}
+							<div className={`modal-body ${modalBodyClass(theme)}`}>
+								{/* ─ Пользователь ─ */}
+								<label className="form-label">Пользователь</label>
+								<select className="form-select mb-3" value={newUserId} onChange={e=>setNewUserId(e.target.value)}>
+									<option value="" disabled>— выберите пользователя —</option>
+									{users.map(u=>(
+										<option key={u.id} value={u.id}>{u.name}</option>
+									))}
+								</select>
+
+								{/* ─ Уровень доступа ─ */}
+								<label className="form-label">Уровень доступа</label>
+								<select className="form-select" value={newUserLevel} onChange={e=>setNewUserLevel(e.target.value)}>
+									{Object.entries(LevelLabel).map(([val,txt])=>(
+										<option key={val} value={val}>{txt}</option>
+									))}
+								</select>
+							</div>
+
+							{/* footer */}
+							<div className={`modal-footer ${modalBodyClass(theme)}`}>
+								<button className="btn btn-secondary" onClick={()=>setAddUserModal(false)}>
+									Отмена
+								</button>
+								<button className="btn btn-primary" disabled={!newUserId} onClick={confirmAddUser}>
+									ОК
+								</button>
+							</div>
+
+						</div>
+					</div>
+				</div>
+			)}
+			{unarchModal && (
+			<div className="modal fade show" style={{display:"block",background:"rgba(0,0,0,.5)"}}>
+				<div className="modal-dialog modal-lg modal-dialog-centered">
+					<div className="modal-content" style={modalContentStyle(theme)}>
+
+						{/* header */}
+						<div className={`modal-header ${modalBodyClass(theme)}`}>
+							<h5 className="modal-title">Разархивировать «{selectedDoc.name}»</h5>
+							<button className="btn-close" onClick={()=>setUnarchModal(false)}/>
+						</div>
+
+						{/* body */}
+						<div className={`modal-body ${modalBodyClass(theme)}`}>
+							<p className="mb-2 small text-muted">Будут восстановлены все версии ветки:</p>
+							<ul className="list-group mb-3">
+								{unarchDocs.map(v=>(
+									<li key={v.id} className="list-group-item d-flex justify-content-between">
+										<span>{v.name}</span>
+										<span className="badge bg-secondary">v{v.version}</span>
+									</li>
+								))}
+							</ul>
+
+							<label className="form-label">Куда:</label>
+							<select className="form-select"
+											value={targetRoom}
+											onChange={e=>setTargetRoom(e.target.value)}>
+								<option value="">(Вне комнаты)</option>
+								{mineRooms.map(r => (
+									<option key={r.id} value={r.id}>{r.title}</option>
+								))}
+							</select>
+						</div>
+
+						{/* footer */}
+						<div className={`modal-footer ${modalBodyClass(theme)}`}>
+							<button className="btn btn-secondary" onClick={()=>setUnarchModal(false)}>Отмена</button>
+							<button className="btn btn-primary" onClick={async ()=>{
+								try{
+									await api.patch(`/documents/${selectedDoc.id}/unarchive`,
+										targetRoom ? { targetRoomId: targetRoom } : { targetRoomId: null });
+									push("Документы восстановлены", "success");
+									await loadRoomDocs();
+								}catch{
+									push("Не удалось разархивировать", "danger");
+								}finally{
+									setUnarchModal(false);
+								}
+							}}>
+								ОК
+							</button>
+						</div>
+
+					</div>
+				</div>
+			</div>
+		)}
 		</div>
-		
 	);
 }

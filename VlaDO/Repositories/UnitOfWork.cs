@@ -13,6 +13,7 @@ namespace VlaDO.Repositories
         public IGenericRepository<DocumentToken> Tokens { get; }
         public IGenericRepository<RoomUser> RoomUsers { get; }
         public IDocumentTokenRepository DocumentTokens { get; }
+        public IGenericRepository<Activity> Activities { get; }
         public IGenericRepository<PasswordResetToken> PasswordResetTokens { get; }
         public UnitOfWork(DocumentFlowContext context)
         {
@@ -27,6 +28,7 @@ namespace VlaDO.Repositories
             PasswordResetTokens = new GenericRepository<PasswordResetToken>(context);
             DocumentRepository = new DocumentRepository(context);
             DocumentTokens = new DocumentTokenRepository(context);
+            Activities = new GenericRepository<Activity>(context);
         }
 
         public Task<int> CommitAsync() => _context.SaveChangesAsync();
@@ -34,5 +36,6 @@ namespace VlaDO.Repositories
         public void Dispose() => _context.Dispose();
         public IDocumentRepository DocumentRepository { get; }
         public IGenericRepository<UserContact> Contacts { get; }
+        public Task<int> CommitAsync(CancellationToken ct = default) => _context.SaveChangesAsync(ct);
     }
 }

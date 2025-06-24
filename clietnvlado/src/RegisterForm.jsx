@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "./api";
-import { FaSpinner } from "react-icons/fa";
+import { FaSpinner, FaEye, FaEyeSlash } from "react-icons/fa";
 import debounce from "./utils/debounce";
 import { useAlert } from "./contexts/AlertContext"
 
@@ -14,6 +14,8 @@ export default function RegisterForm({ theme, onLogin }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { push } = useAlert();
+  const [showPwd , setShowPwd ] = useState(false);
+  const [showConf, setShowConf] = useState(false);
 
   function validate() {
     if (!email.includes("@")) return "Некорректный email";
@@ -101,9 +103,9 @@ export default function RegisterForm({ theme, onLogin }) {
         <label htmlFor="regUsername">Имя пользователя</label>
       </div>
 
-      <div className="form-floating mb-3">
+      <div className="form-floating mb-3 position-relative">
         <input
-          type="password"
+          type={showPwd ? "text" : "password"}
           id="regPassword"
           className={`form-control ${
             theme === "dark" ? "bg-secondary text-light border-0" : ""
@@ -114,11 +116,20 @@ export default function RegisterForm({ theme, onLogin }) {
           required
         />
         <label htmlFor="regPassword">Пароль</label>
+
+        <button type="button"
+          className="btn btn-link position-absolute top-50 end-0 translate-middle-y
+                     text-decoration-none p-0 me-2"
+          tabIndex={-1}
+          onClick={()=>setShowPwd(p=>!p)}
+          aria-label={showPwd?"Скрыть пароль":"Показать пароль"}>
+          {showPwd ? <FaEyeSlash/> : <FaEye/>}
+        </button>
       </div>
 
-      <div className="form-floating mb-3">
+      <div className="form-floating mb-3 position-relative">
         <input
-          type="password"
+          type={showPwd ? "text" : "password"}
           id="regConfirm"
           className={`form-control ${
             theme === "dark" ? "bg-secondary text-light border-0" : ""
@@ -129,6 +140,15 @@ export default function RegisterForm({ theme, onLogin }) {
           required
         />
         <label htmlFor="regConfirm">Повторите пароль</label>
+        
+        <button type="button"
+          className="btn btn-link position-absolute top-50 end-0 translate-middle-y
+                     text-decoration-none p-0 me-2"
+          tabIndex={-1}
+          onClick={()=>setShowPwd(p=>!p)}
+          aria-label={showPwd?"Скрыть пароль":"Показать пароль"}>
+          {showPwd ? <FaEyeSlash/> : <FaEye/>}
+        </button>
       </div>
 
       {error && <div className="alert alert-danger py-2">{error}</div>}

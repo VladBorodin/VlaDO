@@ -13,7 +13,6 @@ namespace VlaDO.Services
 
         public async Task<string> GeneratePasswordResetTokenAsync(Guid userId)
         {
-            // Генерируем случайный токен (например, 32 байта)
             var bytes = new byte[32];
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(bytes);
@@ -24,10 +23,9 @@ namespace VlaDO.Services
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 Token = token,
-                ExpiresAt = DateTime.UtcNow.AddHours(1) // срок годности 1 час
+                ExpiresAt = DateTime.UtcNow.AddHours(1)
             };
 
-            // Раньше: _uow.GetRepository<PasswordResetToken>().AddAsync(prt);
             await _uow.PasswordResetTokens.AddAsync(prt);
             await _uow.CommitAsync();
             return token;
@@ -35,7 +33,6 @@ namespace VlaDO.Services
 
         public async Task<bool> ValidatePasswordResetTokenAsync(string token, Guid userId)
         {
-            // Раньше: var repo = _uow.GetRepository<PasswordResetToken>();
             var repo = _uow.PasswordResetTokens;
             var prtQuery = await repo.FindAsync(t => t.Token == token
                                               && t.UserId == userId

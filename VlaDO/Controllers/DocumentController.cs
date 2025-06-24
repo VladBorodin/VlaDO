@@ -19,18 +19,21 @@ public class DocumentController : ControllerBase
     private readonly IPermissionService _perm; 
     private readonly IDocumentRepository _docRepo;
     private readonly IUnitOfWork _uow;
+    private readonly IActivityLogger _logger;
 
     public DocumentController(
     IUnitOfWork uow,
     IDocumentService docService,
     IPermissionService permissionService,
-    IShareService shareService)
+    IShareService shareService,
+    IActivityLogger logger)
     {
         _uow = uow;
         _docRepo = _uow.DocumentRepository;
         _docs = docService;
         _perm = permissionService;
         _share = shareService;
+        _logger = logger;
     }
 
     // ──────── ЗАГРУЗКА ───────────────────────────────────────────
@@ -88,7 +91,6 @@ public class DocumentController : ControllerBase
     public async Task<IActionResult> GenerateToken(Guid roomId, Guid docId,
         [FromBody] GenerateTokenDto dto)
     {
-        // только создатель или Manage-доступ
         if (!await _perm.CheckAccessAsync(User.GetUserId(), roomId, AccessLevel.Full))
             return Forbid();
 
@@ -108,10 +110,8 @@ public class DocumentController : ControllerBase
     [HttpGet("token/{token}")]
     public async Task<IActionResult> GetByToken(Guid roomId, string token)
     {
-        // получаем документ по токену – внутри ShareService проверка срока
         var (bytes, name, ct, docRoomId) = await _share.DownloadByTokenAsync(token);
 
-        // пользователь должен иметь хотя бы Read-доступ к комнате
         if (!await _perm.CheckAccessAsync(User.GetUserId(), docRoomId, AccessLevel.Read))
             return Forbid();
 
@@ -220,8 +220,7 @@ public class DocumentController : ControllerBase
             CreatedOn = DateTime.UtcNow,
             Note = dto.Note,
             RoomId = dto.RoomId,
-            Version = 1,
-            ForkPath = await DocumentVersionHelper.GenerateInitialForkPathAsync(_uow.Documents, userId)
+            Version = 1
         };
 
         if (dto.File != null)
@@ -229,20 +228,33 @@ public class DocumentController : ControllerBase
             using var ms = new MemoryStream();
             await dto.File.CopyToAsync(ms);
             newDoc.Data = ms.ToArray();
-            newDoc.Hash = ComputeHash(newDoc.Data); // метод, считающий SHA256 или MD5
+            newDoc.Hash = ComputeHash(newDoc.Data);
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.PrevHash))
+        {
+            var parent = await _uow.Documents.FirstOrDefaultAsync(d =>
+                d.Hash == dto.PrevHash &&
+                d.RoomId == dto.RoomId);
+
+            if (parent != null)
+            {
+                newDoc.ParentDocId = parent.Id;
+                newDoc.PrevHash = parent.Hash;
+                (newDoc.Version, newDoc.ForkPath) = await DocumentVersionHelper.GenerateNextVersionAsync(_uow.Documents, parent);
+            }
+        }
+
+        if (string.IsNullOrEmpty(newDoc.ForkPath))
+        {
+            newDoc.Version = 1;
+            newDoc.ForkPath = await DocumentVersionHelper.SafeGenerateInitialForkPathAsync(_uow.Documents, userId, dto.RoomId ?? Guid.Empty);
         }
 
         await _uow.Documents.AddAsync(newDoc);
         await _uow.CommitAsync();
 
         return Ok(newDoc.Id);
-    }
-
-    private static string ComputeHash(byte[] data)
-    {
-        using var sha = System.Security.Cryptography.SHA256.Create();
-        var hash = sha.ComputeHash(data);
-        return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
     }
 
     [HttpPost("{docId:guid}/new-version")]
@@ -310,18 +322,11 @@ public class DocumentController : ControllerBase
     [HttpDelete("/api/documents/{docId}")]
     public async Task<IActionResult> DeleteDocument(Guid docId)
     {
-        var doc = await _uow.Documents.GetByIdAsync(docId);
-        if (doc == null) return NotFound();
-
-        var tokens = await _uow.Tokens.FindAsync(t => t.DocumentId == docId);
-        foreach (var tok in tokens)
-            await _uow.Tokens.DeleteAsync(tok.Id);
-
-        await _uow.Documents.DeleteAsync(docId);
-
-        await _uow.CommitAsync();
+        var userId = User.GetUserId();
+        await _docs.DeleteAsync(docId, userId);
         return NoContent();
     }
+
 
     [HttpDelete("/api/rooms/{roomId:guid}/documents")]
     public async Task<IActionResult> DeleteAllInRoom(Guid roomId)
@@ -350,16 +355,9 @@ public class DocumentController : ControllerBase
     [HttpPatch("/api/documents/{docId}/rename")]
     public async Task<IActionResult> Rename(Guid docId, [FromBody] RenameDto dto)
     {
-        if (string.IsNullOrWhiteSpace(dto.Name))
-            return BadRequest("Новое имя не может быть пустым");
-
         var userId = User.GetUserId();
-        var doc = await _uow.Documents.GetByIdAsync(docId);
-        if (doc == null) return NotFound();
-
-        doc.Name = dto.Name.Trim();
-        await _uow.CommitAsync();
-        return Ok(doc.Id);
+        var id = await _docs.RenameAsync(docId, userId, dto.Name);
+        return Ok(id);
     }
     [HttpPost("/api/documents/{docId}/copy")]
     public async Task<IActionResult> CopyDocument(Guid docId, [FromBody] CopyDocumentDto dto)
@@ -419,6 +417,7 @@ public class DocumentController : ControllerBase
         if (!canEdit) return Forbid();
 
         doc.RoomId = null;
+
         await _uow.CommitAsync();
         return Ok();
     }
@@ -457,6 +456,7 @@ public class DocumentController : ControllerBase
             doc.Data?.LongLength ?? 0,
             Path.GetExtension(doc.Name).Trim('.').ToLowerInvariant(),
             doc.Room?.Title,
+            doc.RoomId,
             (await _uow.Users.GetBriefByIdAsync(doc.CreatedBy))?.Name,
             doc.CreatedBy,
             doc.CreatedOn,
@@ -470,5 +470,74 @@ public class DocumentController : ControllerBase
     {
         var doc = await _uow.Documents.FirstOrDefaultAsync(d => d.Id == docId);
         return doc?.Note;
+    }
+    /// <summary>Удаляет ВСЕ документы из архива текущего пользователя</summary>
+    [HttpDelete("~/api/documents/archived")]
+    public async Task<IActionResult> ClearArchive()
+    {
+        var userId = User.GetUserId();
+        var archiveRoom = await _uow.Rooms.FirstOrDefaultAsync(r => r.OwnerId == userId && r.Title == "Архив");
+        if (archiveRoom == null)
+            return NoContent();
+
+        var docs = await _uow.Documents.FindAsync(d => d.RoomId == archiveRoom.Id && d.CreatedBy == userId);
+        foreach (var d in docs)
+        {
+            var toks = await _uow.Tokens.FindAsync(t => t.DocumentId == d.Id);
+            await _uow.Tokens.DeleteRangeAsync(toks);
+            await _uow.Documents.DeleteAsync(d);
+        }
+
+        await _uow.CommitAsync();
+        return NoContent();
+    }
+
+    [HttpPatch("~/api/documents/{docId:guid}/unarchive")]
+    public async Task<IActionResult> Unarchive(Guid docId, [FromBody] UnarchiveDto dto)
+    {
+        var userId = User.GetUserId();
+
+        var ids = await _uow.DocumentRepository
+                             .GetVersionChainAsync(docId)
+                             .ContinueWith(t => t.Result.Select(d => d.Id));
+
+        if (!ids.Any()) return NotFound();
+
+        if (dto.TargetRoomId is Guid roomId &&
+            !await _perm.CheckRoomAccessAsync(userId, roomId, AccessLevel.Edit))
+            return Forbid();
+
+        foreach (var id in ids)
+        {
+            var doc = await _uow.Documents.GetByIdAsync(id);
+            if (doc != null) doc.RoomId = dto.TargetRoomId;
+        }
+
+        await _uow.CommitAsync();
+        return NoContent();
+    }
+    [HttpGet("/api/documents/latest")]
+    public async Task<IActionResult> Latest([FromQuery] int top = 10)
+    {
+        var uid = User.GetUserId();
+        var docs = await _docRepo.GetLatestVersionsByForkPathAsync(uid);
+
+        var dto = docs
+            .OrderByDescending(d => d.CreatedOn)
+            .Take(top)
+            .Select(d => new {
+                d.Id,
+                d.Name,
+                d.CreatedOn,
+                Room = d.Room?.Title
+            });
+
+        return Ok(dto);
+    }
+
+    private static string ComputeHash(byte[] data)
+    {
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        return BitConverter.ToString(sha.ComputeHash(data)).Replace("-", "").ToLowerInvariant();
     }
 }

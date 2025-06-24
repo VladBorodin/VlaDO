@@ -7,6 +7,7 @@ namespace VlaDO.Services;
 public class RoomService : IRoomService
 {
     private readonly IUnitOfWork _uow;
+    private readonly ActivityLogger _logger;
     public RoomService(IUnitOfWork uow) => _uow = uow;
 
     public async Task<Guid> CreateAsync(Guid ownerId, string? title)
@@ -18,6 +19,7 @@ public class RoomService : IRoomService
         var room = new Room { OwnerId = ownerId, Title = title };
         await _uow.Rooms.AddAsync(room);
         await _uow.CommitAsync();
+        await _logger.LogAsync(ActivityType.CreatedRoom, ownerId, room.Id, new { Title = title });
         return room.Id;
     }
 

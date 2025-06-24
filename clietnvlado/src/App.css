@@ -1,8 +1,6 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
   padding: 2rem;
-  text-align: center;
+  margin: 0 auto;
 }
 
 .logo {
@@ -214,15 +212,24 @@ body.dark .btn-close {
 }
 
 body.dark .list-group-item {
-  background-color:#2a2a2a;
-  color:#f8f9fa;
-  border-color:#444;
+  background-color: #2a2a2a;
+  color: #f8f9fa;
+  border-color: #444;
+  border-radius: .375rem;
+  padding: 0.5rem 1rem;
+  transition: background-color 0.2s ease;
+  box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
 }
 
 body.dark .list-group-item:hover,
 body.dark .list-group-item:focus {
-  background-color:#383838;
-  color:#fff;
+  background-color: #383838;
+  color: #ffffff;
+}
+
+body.dark .badge.bg-secondary {
+  background-color: #555 !important;
+  color: #fff !important;
 }
 
 body.dark .form-control::placeholder,
@@ -438,4 +445,160 @@ body.dark .pdf-nav-bar {
 .note-box.light {
   background-color: #f8f9fa;
   color: #212529;
+}
+
+body.dark .dropdown-menu {
+  background-color: #1e1e1e !important;
+  color: #f8f9fa !important;
+}
+
+body.dark .dropdown-item {
+  color: #f8f9fa !important;
+}
+
+body.dark .dropdown-item.fw-bold {
+  font-weight: bold;
+}
+
+body.dark .dropdown-header {
+  color: #ccc;
+  border-bottom: 1px solid #333;
+}
+
+body.dark .dropdown-item:hover {
+  background-color: #2a2a2a;
+}
+
+.img-wrapper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* ─────────── базовая «строка» двух панелей ─────────── */
+.room-row  {
+  display:flex;
+  flex-wrap:wrap;
+  gap:1.5rem;
+}
+
+/* левая панель: растягивается, но может ужаться */
+.room-row .left-pane  { flex:1 1 480px; }   /* basis ~ ширина таблицы */
+
+/* правая панель: не уже 300 px и НЕ растягивается */
+.room-row .right-pane {
+  flex:0 0 300px;       /* grow=0, shrink=0, basis=300 */
+  min-width:300px;
+}
+
+body.dark {
+  background: linear-gradient(135deg, #1f1f1f, #2c2c2c);
+  color: #f8f9fa;
+}
+
+body.light {
+  background: linear-gradient(135deg, #ffffff, #f0f0f0);
+  color: #212529;
+}
+
+.fade-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 0.5s ease;
+  opacity: 1;
+}
+
+.fade-screen.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*стандартные кнопки*/
+
+body.light .btn-primary {
+  background: linear-gradient(135deg, #007bff, #339cff);
+  border: none;
+  color: white;
+}
+
+body.light .btn-success {
+  background: linear-gradient(135deg, #28a745, #5cd971);
+  border: none;
+  color: white;
+}
+
+body.dark .btn-primary {
+  background: linear-gradient(135deg, #375a7f, #555555);
+  border: none;
+  color: white;
+}
+
+body.dark .btn-success {
+  background: linear-gradient(135deg, #218838, #555555);
+  border: none;
+  color: white;
+}
+
+body.light .btn-primary:hover,
+body.dark .btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+body.light .btn-success:hover,
+body.dark .btn-success:hover {
+  filter: brightness(1.1);
+}
+
+body.light .btn-danger {
+  background: linear-gradient(135deg, #dc3545, #ff6b81);
+  border: none;
+  color: white;
+}
+
+body.light .btn-warning {
+  background: linear-gradient(135deg, #ffc107, #ffe066);
+  border: none;
+  color: #212529;
+}
+
+body.dark .btn-danger {
+  background: linear-gradient(135deg, #dc3545, #555555);
+  border: none;
+  color: white;
+}
+
+body.dark .btn-warning {
+  background: linear-gradient(135deg, #ffc107, #666666);
+  border: none;
+  color: #f8f9fa;
+}
+
+body.light .btn-danger:hover,
+body.light .btn-warning:hover,
+body.dark .btn-danger:hover,
+body.dark .btn-warning:hover {
+  filter: brightness(1.1);
+}
+
+.btn:focus {
+  box-shadow: 0 0 0 0.2rem rgba(255,255,255,0.25);
+  outline: none;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

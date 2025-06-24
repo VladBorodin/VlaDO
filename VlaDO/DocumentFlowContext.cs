@@ -11,6 +11,8 @@ public class DocumentFlowContext : DbContext
     public DbSet<RoomUser> RoomUsers => Set<RoomUser>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<DocumentToken> DocumentTokens => Set<DocumentToken>();
+    public DbSet<Activity> Activities => Set<Activity>();
+    public DbSet<ActivityRead> ActivityReads => Set<ActivityRead>();
 
     public DocumentFlowContext(DbContextOptions<DocumentFlowContext> options)
         : base(options) { }
@@ -82,5 +84,35 @@ public class DocumentFlowContext : DbContext
             .HasForeignKey(c => c.ContactId)
             .OnDelete(DeleteBehavior.NoAction);
 
+        mb.Entity<Activity>(e =>
+        {
+            e.Property(a => a.Type)
+              .HasConversion<string>();
+
+            e.HasIndex(a => a.UserId);
+            e.HasIndex(a => a.CreatedAt);
+
+            e.Property(a => a.PayloadJson)
+             .HasColumnType("TEXT");
+        });
+
+        mb.Entity<Activity>()
+          .HasIndex(a => a.CreatedAt);
+
+        mb.Entity<Activity>()
+          .Property(a => a.CreatedAt)
+          .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+        mb.Entity<ActivityRead>().HasKey(ar => new { ar.ActivityId, ar.UserId });
+
+        mb.Entity<ActivityRead>()
+            .HasOne(ar => ar.Activity)
+            .WithMany()
+            .HasForeignKey(ar => ar.ActivityId);
+
+        mb.Entity<ActivityRead>()
+            .HasOne(ar => ar.User)
+            .WithMany()
+            .HasForeignKey(ar => ar.UserId);
     }
 }
