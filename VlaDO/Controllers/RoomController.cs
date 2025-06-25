@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pipelines.Sockets.Unofficial.Buffers;
 using StackExchange.Redis;
 using VlaDO.DTOs;
 using VlaDO.DTOs.Room;
@@ -11,13 +10,33 @@ using VlaDO.Services;
 
 namespace VlaDO.Controllers;
 
+/// <summary>
+/// Контроллер для управления комнатами (создание, приглашение пользователей, получение доступа).
+/// </summary>
 [ApiController, Authorize, Route("api/rooms")]
 public class RoomController : ControllerBase
 {
+    /// <summary>
+    /// Сервис управления комнатами.
+    /// </summary>
     private readonly IRoomService _svc;
+
+    /// <summary>
+    /// Интерфейс доступа к репозиториям.
+    /// </summary>
     private readonly IUnitOfWork _uow;
+
+    /// <summary>
+    /// Сервис логирования действий.
+    /// </summary>
     private readonly IActivityLogger _logger;
 
+    /// <summary>
+    /// Конструктор контроллера комнат.
+    /// </summary>
+    /// <param name="s">Сервис комнат.</param>
+    /// <param name="u">Единица работы с базой данных.</param>
+    /// <param name="l">Логгер активностей.</param>
     public RoomController(IRoomService s, IUnitOfWork u, IActivityLogger l) 
     { 
         _svc = s; 
@@ -25,6 +44,12 @@ public class RoomController : ControllerBase
         _logger = l;
     }
 
+    /// <summary>
+    /// Пригласить пользователя в комнату.
+    /// </summary>
+    /// <param name="roomId">ID комнаты.</param>
+    /// <param name="dto">Информация о пользователе и уровне доступа.</param>
+    /// <returns>Результат операции.</returns>
     [HttpPost("{roomId:guid}/users")]
     public async Task<IActionResult> AddUser(Guid roomId, [FromBody] AddUserToRoomDto dto)
     {
@@ -47,6 +72,12 @@ public class RoomController : ControllerBase
         return Ok();
     }
 
+
+    /// <summary>
+    /// Получить список пользователей комнаты.
+    /// </summary>
+    /// <param name="roomId">ID комнаты.</param>
+    /// <returns>Список пользователей с их уровнями доступа.</returns>
     [HttpGet("{roomId:guid}/users")]
     public async Task<IActionResult> GetUsers(Guid roomId)
     {
@@ -55,12 +86,24 @@ public class RoomController : ControllerBase
         var result = rus.Select(ru => new RoomUserDto(ru.UserId, ru.User.Name, ru.AccessLevel));
         return Ok(result);
     }
+
+    /// <summary>
+    /// Получить список последних комнат, с которыми взаимодействовал пользователь.
+    /// </summary>
+    /// <param name="take">Сколько комнат вернуть (по умолчанию — 3).</param>
+    /// <returns>Список комнат.</returns>
     [HttpGet("recent")]
     public async Task<IActionResult> Recent([FromQuery] int take = 3)
     {
         var list = await _uow.Rooms.GetRecentAsync(User.GetUserId(), take);
         return Ok(list);
     }
+
+    /// <summary>
+    /// Создать новую комнату.
+    /// </summary>
+    /// <param name="dto">Данные о создаваемой комнате.</param>
+    /// <returns>ID новой комнаты или ошибка.</returns>
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateRoomDto dto)
     {
@@ -101,6 +144,10 @@ public class RoomController : ControllerBase
         return Ok(room.Id);
     }
 
+    /// <summary>
+    /// Получить список комнат, доступных текущему пользователю, с указанием уровня доступа.
+    /// </summary>
+    /// <returns>Список комнат с доступом.</returns>
     [HttpGet("my")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> GetMyRooms()
@@ -122,6 +169,12 @@ public class RoomController : ControllerBase
 
         return Ok(dto);
     }
+
+    /// <summary>
+    /// Поиск комнат по фильтру: названию, идентификатору или дате.
+    /// </summary>
+    /// <param name="filter">Фильтр поиска комнат.</param>
+    /// <returns>Список подходящих комнат.</returns>
     [HttpPost("search")]
     public async Task<IActionResult> SearchRooms([FromBody] RoomFilterDto filter)
     {
@@ -129,6 +182,11 @@ public class RoomController : ControllerBase
         var rooms = await _uow.Rooms.SearchRoomsAsync(userId, filter.Title, filter.RoomId, filter.Since);
         return Ok(rooms);
     }
+
+    /// <summary>
+    /// Получить список комнат, сгруппированных по доступу (мои и чужие).
+    /// </summary>
+    /// <returns>Сгруппированный список комнат.</returns>
     [HttpGet("grouped")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> GetGroupedRooms()
@@ -137,6 +195,13 @@ public class RoomController : ControllerBase
         var grouped = await _svc.GetGroupedRoomsAsync(userId);
         return Ok(grouped);
     }
+
+    /// <summary>
+    /// Переименовать комнату.
+    /// </summary>
+    /// <param name="roomId">ID комнаты.</param>
+    /// <param name="dto">Новые данные, включая имя.</param>
+    /// <returns>ID обновлённой комнаты или ошибка.</returns>
     [HttpPatch("{roomId:guid}/rename")]
     public async Task<IActionResult> Rename(Guid roomId, [FromBody] RenameDto dto)
     {
@@ -154,6 +219,12 @@ public class RoomController : ControllerBase
 
         return Ok(room.Id);
     }
+
+    /// <summary>
+    /// Удалить комнату и все связанные с ней документы и доступы.
+    /// </summary>
+    /// <param name="roomId">ID удаляемой комнаты.</param>
+    /// <returns>HTTP 204 при успехе.</returns>
     [HttpDelete("{roomId:guid}")]
     public async Task<IActionResult> DeleteRoom(Guid roomId)
     {
@@ -197,9 +268,15 @@ public class RoomController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Обновить уровень доступа пользователя в комнате.
+    /// </summary>
+    /// <param name="roomId">ID комнаты.</param>
+    /// <param name="userId">ID пользователя, которому обновляется доступ.</param>
+    /// <param name="dto">Новый уровень доступа.</param>
+    /// <returns>HTTP 200 при успехе.</returns>
     [HttpPatch("{roomId:guid}/users/{userId:guid}")]
-    public async Task<IActionResult> UpdateUser(Guid roomId, Guid userId,
-                                            [FromBody] UpdateRoomUserDto dto)
+    public async Task<IActionResult> UpdateUser(Guid roomId, Guid userId,[FromBody] UpdateRoomUserDto dto)
     {
         var ownerId = User.GetUserId();
         if (!await _uow.Rooms.IsRoomOwnerAsync(roomId, ownerId)) return Forbid();
@@ -209,6 +286,12 @@ public class RoomController : ControllerBase
         return Ok();
     }
 
+    /// <summary>
+    /// Удалить пользователя из комнаты.
+    /// </summary>
+    /// <param name="roomId">ID комнаты.</param>
+    /// <param name="userId">ID пользователя, которого необходимо удалить.</param>
+    /// <returns>HTTP 204 при успехе.</returns>
     [HttpDelete("{roomId:guid}/users/{userId:guid}")]
     public async Task<IActionResult> RemoveUser(Guid roomId, Guid userId)
     {
@@ -229,6 +312,11 @@ public class RoomController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Удалить всех пользователей, кроме владельца, из комнаты.
+    /// </summary>
+    /// <param name="roomId">ID комнаты.</param>
+    /// <returns>HTTP 204 при успехе.</returns>
     [HttpDelete("{roomId:guid}/users")]
     public async Task<IActionResult> RemoveAllUsers(Guid roomId)
     {
@@ -241,9 +329,15 @@ public class RoomController : ControllerBase
         await _uow.CommitAsync();
         return NoContent();
     }
+
+    /// <summary>
+    /// Обновить уровень доступа по умолчанию для новых пользователей комнаты.
+    /// </summary>
+    /// <param name="roomId">ID комнаты.</param>
+    /// <param name="dto">Новый уровень доступа.</param>
+    /// <returns>Обновлённый уровень доступа.</returns>
     [HttpPatch("{roomId:guid}/access-level")]
-    public async Task<IActionResult> UpdateAccessLevel(Guid roomId,
-    [FromBody] UpdateRoomUserDto dto)
+    public async Task<IActionResult> UpdateAccessLevel(Guid roomId, [FromBody] UpdateRoomUserDto dto)
     {
         var ownerId = User.GetUserId();
         var room = await _uow.Rooms.GetByIdAsync(roomId);
@@ -262,7 +356,12 @@ public class RoomController : ControllerBase
 
         return Ok(room.AccessLevel);
     }
-    
+
+    /// <summary>
+    /// Получить список комнат, в которых пользователь был активен последним.
+    /// </summary>
+    /// <param name="top">Максимальное количество возвращаемых комнат (по умолчанию 10).</param>
+    /// <returns>Список последних активных комнат.</returns>
     [HttpGet("last-active")]
     public async Task<IActionResult> GetLastActive([FromQuery] int top = 10)
     {
@@ -270,6 +369,12 @@ public class RoomController : ControllerBase
         var rooms = await _uow.DocumentRepository.GetLastActiveRoomsAsync(uid, top);
         return Ok(rooms);
     }
+
+    /// <summary>
+    /// Принять приглашение в комнату.
+    /// </summary>
+    /// <param name="roomId">ID комнаты, в которую пользователь был приглашён.</param>
+    /// <returns>HTTP 204 при успехе, 403 если не было приглашения, 404 если комната не найдена.</returns>
     [HttpPost("{roomId:guid}/accept")]
     public async Task<IActionResult> AcceptInvite(Guid roomId)
     {
@@ -302,6 +407,11 @@ public class RoomController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Отклонить приглашение в комнату.
+    /// </summary>
+    /// <param name="roomId">ID комнаты, приглашение в которую отклоняется.</param>
+    /// <returns>HTTP 204 при успехе, 403 если не было приглашения, 404 если комната не найдена.</returns>
     [HttpPost("{roomId:guid}/decline")]
     public async Task<IActionResult> DeclineInvite(Guid roomId)
     {

@@ -9,20 +9,41 @@ using VlaDO.Services;
 
 namespace VlaDO.Controllers
 {
+    /// <summary>
+    /// Контроллер для работы с глобальными (непривязанными к комнатам) документами.
+    /// Позволяет загружать документы, создавать версии и отслеживать историю.
+    /// </summary>
     [ApiController]
     [Authorize]
     [Route("api/documents")]
     public class GlobalDocumentsController : ControllerBase
     {
+        /// <summary>
+        /// Единица работы с репозиториями и базой данных.
+        /// </summary>
         private readonly IUnitOfWork _uow;
+
+        /// <summary>
+        /// Сервис логирования действий.
+        /// </summary>
         private readonly IActivityLogger _logger;
 
+        /// <summary>
+        /// Создает экземпляр контроллера глобальных документов.
+        /// </summary>
+        /// <param name="uow">Интерфейс для доступа к репозиториям.</param>
+        /// <param name="logger">Сервис логирования действий пользователя.</param>
         public GlobalDocumentsController(IUnitOfWork uow, IActivityLogger logger)
         {
             _uow = uow;
             _logger = logger;
         }
 
+        /// <summary>
+        /// Загружает новый документ, не привязанный к комнате. Поддерживает создание версий на основе предыдущих.
+        /// </summary>
+        /// <param name="dto">Информация о документе и файле.</param>
+        /// <returns>Идентификатор созданного документа.</returns>
         [HttpPost]
         public async Task<IActionResult> UploadWithoutRoom([FromForm] CreateDocumentDto dto)
         {
@@ -79,13 +100,24 @@ namespace VlaDO.Controllers
             return Ok(doc.Id);
         }
 
-
+        /// <summary>
+        /// Вычисляет SHA256-хеш бинарного содержимого файла.
+        /// </summary>
+        /// <param name="data">Массив байтов файла.</param>
+        /// <returns>Строковое представление хеша в нижнем регистре.</returns>
         private static string ComputeHash(byte[] data)
         {
             using var sha = System.Security.Cryptography.SHA256.Create();
             return BitConverter.ToString(sha.ComputeHash(data)).Replace("-", "").ToLowerInvariant();
         }
 
+        /// <summary>
+        /// Создает новую версию документа, если он не привязан к комнате.
+        /// </summary>
+        /// <param name="docId">Идентификатор исходного документа.</param>
+        /// <param name="file">Новый файл версии.</param>
+        /// <param name="note">Описание или комментарий к новой версии.</param>
+        /// <returns>Идентификатор созданной версии документа.</returns>
         [HttpPost("{docId:guid}/version")]
         public async Task<IActionResult> NewVersion(Guid docId, [FromForm] IFormFile file, [FromForm] string? note)
         {

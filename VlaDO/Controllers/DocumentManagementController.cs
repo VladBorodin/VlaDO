@@ -8,14 +8,35 @@ using VlaDO.Services;
 
 namespace VlaDO.Controllers
 {
+
+    /// <summary>
+    /// Контроллер для управления действиями архивации документов.
+    /// </summary>
     [ApiController, Authorize]
     [Route("api/documents")]
     public class DocumentManagementController : ControllerBase
     {
+        /// <summary>
+        /// Единица работы с репозиториями.
+        /// </summary>
         private readonly IUnitOfWork _uow;
+
+        /// <summary>
+        /// Сервис проверки прав доступа.
+        /// </summary>
         private readonly IPermissionService _perm;
+
+        /// <summary>
+        /// Сервис логирования пользовательских действий.
+        /// </summary>
         private readonly IActivityLogger _logger;
 
+        /// <summary>
+        /// Создает экземпляр контроллера для управления архивацией документов.
+        /// </summary>
+        /// <param name="uow">Единица работы с репозиториями.</param>
+        /// <param name="perm">Сервис прав доступа.</param>
+        /// <param name="logger">Сервис логирования.</param>
         public DocumentManagementController(IUnitOfWork uow, IPermissionService perm, IActivityLogger logger)
         {
             _uow = uow;
@@ -23,6 +44,12 @@ namespace VlaDO.Controllers
             _logger = logger;
         }
 
+        /// <summary>
+        /// Архивирует документ и все его версии, перемещая их в комнату "Архив".
+        /// Удаляет доступ по токенам других пользователей.
+        /// </summary>
+        /// <param name="docId">Идентификатор документа для архивации.</param>
+        /// <returns>Результат архивации: Ok или ошибка доступа.</returns>
         [HttpPost("{docId:guid}/archive")]
         public async Task<IActionResult> Archive(Guid docId)
         {

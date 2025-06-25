@@ -10,23 +10,36 @@ using VlaDO.Helpers;
 
 namespace VlaDO.Controllers;
 
+/// <summary>
+/// Работа с документами внутри комнат и вне их (загрузка, версии, токены, архив).
+/// </summary>
 [ApiController, Authorize]
 [Route("api/rooms/{roomId:guid}/docs")]
 public class DocumentController : ControllerBase
 {
+    /// <summary>Сервис документов.</summary>
     private readonly IDocumentService _docs;
+    /// <summary>Сервис расшаривания документов по токену.</summary>
     private readonly IShareService _share;
-    private readonly IPermissionService _perm; 
+    /// <summary>Сервис проверки прав доступа.</summary>
+    private readonly IPermissionService _perm;
+    /// <summary>Репозиторий документов.</summary>
     private readonly IDocumentRepository _docRepo;
+    /// <summary>Unit-of-Work для операций БД.</summary>
     private readonly IUnitOfWork _uow;
+    /// <summary>Логгер пользовательской активности.</summary>
     private readonly IActivityLogger _logger;
 
-    public DocumentController(
-    IUnitOfWork uow,
-    IDocumentService docService,
-    IPermissionService permissionService,
-    IShareService shareService,
-    IActivityLogger logger)
+    /// <summary>
+    /// Контроллер для управления документами. Включает сервисы доступа, логирования и репозиторий.
+    /// </summary>
+    /// <param name="uow">Единица работы для доступа к репозиториям.</param>
+    /// <param name="docService">Сервис обработки документов.</param>
+    /// <param name="permissionService">Сервис проверки прав доступа.</param>
+    /// <param name="shareService">Сервис шаринга документов по токену.</param>
+    /// <param name="logger">Сервис логирования активности.</param>
+    public DocumentController(IUnitOfWork uow, IDocumentService docService, IPermissionService permissionService,
+        IShareService shareService, IActivityLogger logger)
     {
         _uow = uow;
         _docRepo = _uow.DocumentRepository;
@@ -36,7 +49,14 @@ public class DocumentController : ControllerBase
         _logger = logger;
     }
 
-    // ──────── ЗАГРУЗКА ───────────────────────────────────────────
+    // ──────────────────────────── Uploads ───────────────────────────
+
+    /// <summary>
+    /// Загружает новый документ в указанную комнату.
+    /// </summary>
+    /// <param name="roomId">Комната-приёмник.</param>
+    /// <param name="file">Файл, отправленный в multipart/form-data.</param>
+    /// <returns>ID созданного документа.</returns>
     [HttpPost]
     public async Task<IActionResult> Upload(Guid roomId, [FromForm] IFormFile file)
     {
@@ -46,6 +66,11 @@ public class DocumentController : ControllerBase
         return Ok(id);
     }
 
+    /// <summary>
+    /// Массовая загрузка файлов в комнату.
+    /// </summary>
+    /// <param name="roomId">Комната-приёмник.</param>
+    /// <param name="files">Список файлов.</param>
     [HttpPost("bulk")]
     public async Task<IActionResult> UploadMany(Guid roomId, [FromForm] List<IFormFile> files)
     {
@@ -53,7 +78,13 @@ public class DocumentController : ControllerBase
         return Ok();
     }
 
-    // ──────── НОВАЯ ВЕРСИЯ ───────────────────────────────────────
+    /// <summary>
+    /// Добавляет новую версию существующего документа.
+    /// </summary>
+    /// <param name="roomId">Комната, к которой относится документ.</param>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <param name="file">Файл новой версии.</param>
+    /// <returns>ID созданной версии.</returns>
     [HttpPost("{docId:guid}/version")]
     public async Task<IActionResult> NewVersion(Guid roomId, Guid docId, IFormFile file)
     {
@@ -66,11 +97,21 @@ public class DocumentController : ControllerBase
         return Ok(id);
     }
 
-    // ──────── СПИСОК / ОДИН ──────────────────────────────────────
+    /// <summary>
+    /// Возвращает список документов в комнате, доступных пользователю.
+    /// </summary>
+    /// <param name="roomId">Комната, к которой относится документ.</param>
+    /// <returns></returns>
     [HttpGet]
     public async Task<IActionResult> List(Guid roomId) =>
         Ok(await _docs.ListAsync(roomId, User.GetUserId()));
 
+    /// <summary>
+    /// Возвращает список документов в комнате, доступных пользователю.
+    /// </summary>
+    /// <param name="roomId">Комната, к которой относится документ.</param>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>Список документов</returns>
     [HttpGet("{docId:guid}")]
     public async Task<IActionResult> Download(Guid roomId, Guid docId)
     {
@@ -78,7 +119,12 @@ public class DocumentController : ControllerBase
         return File(bytes, ct, name);
     }
 
-    // ──────── ZIP НА НЕСКОЛЬКО ───────────────────────────────────
+    /// <summary>
+    /// Скачивает указанные документы в одном ZIP-архиве.
+    /// </summary>
+    /// <param name="roomId">Идентификатор комнаты, в рамках которой выполняется операция. Используется для маршрутизации, но не влияет на выбор документов.</param>
+    /// <param name="dto">Объект, содержащий список идентификаторов документов для архивации.</param>
+    /// <returns>ZIP-файл с выбранными документами в виде бинарного потока.</returns>
     [HttpPost("archive")]
     public async Task<IActionResult> Zip(Guid roomId, [FromBody] DownloadManyDto dto)
     {
@@ -86,7 +132,13 @@ public class DocumentController : ControllerBase
         return File(zip, "application/zip", name);
     }
 
-    // ──────── ГЕНЕРАЦИЯ / ОТЗЫВ ТОКЕНА ───────────────────────────
+    /// <summary>
+    /// Генерирует временный токен доступа к документу с заданным уровнем прав.
+    /// </summary>
+    /// <param name="roomId">Идентификатор комнаты, в рамках которой проверяется доступ пользователя.</param>
+    /// <param name="docId">Идентификатор документа, для которого создаётся токен.</param>
+    /// <param name="dto">Данные для генерации токена: уровень доступа и срок действия.</param>
+    /// <returns>Объект с созданным токеном доступа.</returns>
     [HttpPost("{docId:guid}/token")]
     public async Task<IActionResult> GenerateToken(Guid roomId, Guid docId,
         [FromBody] GenerateTokenDto dto)
@@ -99,6 +151,12 @@ public class DocumentController : ControllerBase
         return Ok(new { token });
     }
 
+    /// <summary>
+    /// Отзывает ранее сгенерированный токен доступа к документу.
+    /// </summary>
+    /// <param name="roomId">Комната, в рамках которой производится проверка прав пользователя.</param>
+    /// <param name="token">Строковое представление токена, подлежащего отзыву.</param>
+    /// <returns>Результат выполнения операции.</returns>
     [HttpDelete("token/{token}")]
     public async Task<IActionResult> RevokeToken(Guid roomId, string token)
     {
@@ -106,7 +164,12 @@ public class DocumentController : ControllerBase
         return NoContent();
     }
 
-    // ──────── СКАЧИВАНИЕ ПО ТОКЕНУ (тоже Authorize!) ─────────────
+    /// <summary>
+    /// Загружает документ по предоставленному токену доступа.
+    /// </summary>
+    /// <param name="roomId">Комната, для которой проверяется доступ (может отличаться от фактической комнаты документа).</param>
+    /// <param name="token">Токен временного доступа к документу.</param>
+    /// <returns>Файл документа, если доступ разрешён.</returns>
     [HttpGet("token/{token}")]
     public async Task<IActionResult> GetByToken(Guid roomId, string token)
     {
@@ -117,6 +180,21 @@ public class DocumentController : ControllerBase
 
         return File(bytes, ct, name);
     }
+
+    /// <summary>
+    /// Возвращает список документов, доступных пользователю, с фильтрацией по типу.
+    /// </summary>
+    /// <param name="type">
+    /// Тип выборки:
+    /// <br/>- "own" — документы, созданные пользователем;
+    /// <br/>- "otherDoc" — чужие документы с доступом;
+    /// <br/>- "lastupdate" — последние версии документов по ForkPath;
+    /// <br/>- "userDoc" — синоним "own";
+    /// <br/>- "all" — все доступные документы;
+    /// <br/>- "archived" — перемещённые в архив;
+    /// <br/>- null или неизвестное значение — по умолчанию все доступные.
+    /// </param>
+    /// <returns>Список документов в расширенном формате.</returns>
     [HttpGet("/api/documents")]
     public async Task<IActionResult> GetDocuments([FromQuery] string? type)
     {
@@ -183,6 +261,11 @@ public class DocumentController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Возвращает все версии указанного документа в порядке цепочки версий.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>Список версий документа с технической информацией.</returns>
     [HttpGet("/api/documents/{docId}/versions")]
     public async Task<IActionResult> GetVersions(Guid docId)
     {
@@ -208,6 +291,12 @@ public class DocumentController : ControllerBase
 
         return Ok(dtoList);
     }
+
+    /// <summary>
+    /// Создаёт новый документ, при необходимости связывая его с предыдущей версией.
+    /// </summary>
+    /// <param name="dto">Данные для создания документа, включая файл, заметку и привязку к комнате.</param>
+    /// <returns>Идентификатор созданного документа.</returns>
     [HttpPost("create")]
     public async Task<IActionResult> CreateDocument([FromForm] CreateDocumentDto dto)
     {
@@ -257,6 +346,13 @@ public class DocumentController : ControllerBase
         return Ok(newDoc.Id);
     }
 
+    /// <summary>
+    /// Создаёт новую версию существующего документа, добавляя файл и примечание.
+    /// </summary>
+    /// <param name="roomId">Комната, к которой относится документ.</param>
+    /// <param name="docId">Идентификатор оригинального документа, на основе которого создаётся новая версия.</param>
+    /// <param name="dto">DTO с новым файлом и необязательным примечанием.</param>
+    /// <returns>Идентификатор новой версии документа.</returns>
     [HttpPost("{docId:guid}/new-version")]
     public async Task<IActionResult> CreateNewVersion(Guid roomId, Guid docId,[FromForm] UpdateDocumentDto dto)
     {
@@ -273,6 +369,11 @@ public class DocumentController : ControllerBase
         return Ok(newId);
     }
 
+    /// <summary>
+    /// Загружает содержимое документа по его идентификатору.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>Файл документа или 404, если не найден.</returns>
     [HttpGet("/api/documents/{docId}/download")]
     public async Task<IActionResult> DownloadById(Guid docId)
     {
@@ -283,6 +384,11 @@ public class DocumentController : ControllerBase
         return File(doc.Data, "application/octet-stream", doc.Name);
     }
 
+    /// <summary>
+    /// Загружает выбранные документы одним ZIP-архивом.
+    /// </summary>
+    /// <param name="dto">Список идентификаторов документов.</param>
+    /// <returns>ZIP-архив с доступными документами или 403, если доступ запрещён.</returns>
     [HttpPost("/api/documents/archive")]
     public async Task<IActionResult> DownloadArchive([FromBody] DownloadManyDto dto)
     {
@@ -319,6 +425,12 @@ public class DocumentController : ControllerBase
         archiveStream.Seek(0, SeekOrigin.Begin);
         return File(archiveStream.ToArray(), "application/zip", "documents.zip");
     }
+
+    /// <summary>
+    /// Удаляет документ по идентификатору.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>204 No Content при успешном удалении.</returns>
     [HttpDelete("/api/documents/{docId}")]
     public async Task<IActionResult> DeleteDocument(Guid docId)
     {
@@ -327,7 +439,11 @@ public class DocumentController : ControllerBase
         return NoContent();
     }
 
-
+    /// <summary>
+    /// Удаляет все документы в указанной комнате (Room), если у пользователя есть полный доступ.
+    /// </summary>
+    /// <param name="roomId">Идентификатор комнаты.</param>
+    /// <returns>204 No Content при успешном удалении или если документов не было.</returns>
     [HttpDelete("/api/rooms/{roomId:guid}/documents")]
     public async Task<IActionResult> DeleteAllInRoom(Guid roomId)
     {
@@ -352,6 +468,13 @@ public class DocumentController : ControllerBase
 
         return NoContent();
     }
+
+    /// <summary>
+    /// Переименовывает документ по указанному идентификатору.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <param name="dto">DTO с новым именем документа.</param>
+    /// <returns>Идентификатор обновлённого документа.</returns>
     [HttpPatch("/api/documents/{docId}/rename")]
     public async Task<IActionResult> Rename(Guid docId, [FromBody] RenameDto dto)
     {
@@ -359,6 +482,13 @@ public class DocumentController : ControllerBase
         var id = await _docs.RenameAsync(docId, userId, dto.Name);
         return Ok(id);
     }
+
+    /// <summary>
+    /// Создаёт копию документа в текущей или указанной комнате.
+    /// </summary>
+    /// <param name="docId">Идентификатор исходного документа.</param>
+    /// <param name="dto">DTO с целевой комнатой для копии.</param>
+    /// <returns>Идентификатор нового скопированного документа.</returns>
     [HttpPost("/api/documents/{docId}/copy")]
     public async Task<IActionResult> CopyDocument(Guid docId, [FromBody] CopyDocumentDto dto)
     {
@@ -403,6 +533,11 @@ public class DocumentController : ControllerBase
         return Ok(copy.Id);
     }
 
+    /// <summary>
+    /// Удаляет привязку документа к комнате, если у пользователя есть права редактирования.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>Результат операции.</returns>
     [HttpPost("/api/documents/{docId:guid}/remove-room")]
     public async Task<IActionResult> RemoveFromRoom(Guid docId)
     {
@@ -422,6 +557,12 @@ public class DocumentController : ControllerBase
         return Ok();
     }
 
+    /// <summary>
+    /// Добавляет документ в указанную комнату, если у пользователя есть права на редактирование.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <param name="roomId">Комната, к которой относится документ.</param>
+    /// <returns>Результат операции.</returns>
     [HttpPost("/api/documents/{docId:guid}/add-to-room/{roomId:guid}")]
     public async Task<IActionResult> AddToRoom(Guid docId, Guid roomId)
     {
@@ -438,6 +579,12 @@ public class DocumentController : ControllerBase
         await _uow.CommitAsync();
         return Ok();
     }
+
+    /// <summary>
+    /// Возвращает метаданные документа, включая имя, размер, автора, дату создания и другие свойства.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>Метаданные документа в формате <see cref="DocumentMetaDto"/> или код ошибки.</returns>
     [HttpGet("/api/documents/{docId:guid}/meta")]
     public async Task<IActionResult> GetMeta(Guid docId)
     {
@@ -466,12 +613,22 @@ public class DocumentController : ControllerBase
 
         return Ok(dto);
     }
+
+    /// <summary>
+    /// Получает примечание (Note) к документу по его идентификатору.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>Примечание к документу или null, если документ не найден.</returns>
     private async Task<string?> GetNoteAsync(Guid docId)
     {
         var doc = await _uow.Documents.FirstOrDefaultAsync(d => d.Id == docId);
         return doc?.Note;
     }
-    /// <summary>Удаляет ВСЕ документы из архива текущего пользователя</summary>
+
+    /// <summary>
+    /// Очищает архив пользователя, удаляя все документы из комнаты с названием "Архив".
+    /// </summary>
+    /// <returns>HTTP 204 No Content, если архив пуст или успешно очищен.</returns>
     [HttpDelete("~/api/documents/archived")]
     public async Task<IActionResult> ClearArchive()
     {
@@ -492,6 +649,12 @@ public class DocumentController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Восстанавливает цепочку версий документа из архива в указанную комнату.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа для восстановления.</param>
+    /// <param name="dto">Объект с целевым идентификатором комнаты.</param>
+    /// <returns>HTTP 204 No Content при успехе, или ошибка доступа/не найдено.</returns>
     [HttpPatch("~/api/documents/{docId:guid}/unarchive")]
     public async Task<IActionResult> Unarchive(Guid docId, [FromBody] UnarchiveDto dto)
     {
@@ -516,6 +679,12 @@ public class DocumentController : ControllerBase
         await _uow.CommitAsync();
         return NoContent();
     }
+
+    /// <summary>
+    /// Получает последние добавленные пользователем документы, отсортированные по дате.
+    /// </summary>
+    /// <param name="top">Количество документов для возврата. По умолчанию 10.</param>
+    /// <returns>Список последних документов с датой создания и названием комнаты.</returns>
     [HttpGet("/api/documents/latest")]
     public async Task<IActionResult> Latest([FromQuery] int top = 10)
     {
@@ -535,6 +704,11 @@ public class DocumentController : ControllerBase
         return Ok(dto);
     }
 
+    /// <summary>
+    /// Вычисляет SHA-256 хеш для переданных бинарных данных.
+    /// </summary>
+    /// <param name="data">Массив байтов, для которого требуется вычислить хеш.</param>
+    /// <returns>Строка хеша в нижнем регистре без разделителей.</returns>
     private static string ComputeHash(byte[] data)
     {
         using var sha = System.Security.Cryptography.SHA256.Create();

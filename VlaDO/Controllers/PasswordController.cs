@@ -7,14 +7,35 @@ using System.Net;
 
 namespace VlaDO.Controllers
 {
+    /// <summary>
+    /// Контроллер, отвечающий за восстановление и сброс пароля.
+    /// Обрабатывает запросы на отправку писем и изменение пароля по токену.
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class PasswordController : ControllerBase
     {
+        /// <summary>
+        /// Единица работы с репозиториями базы данных.
+        /// </summary>
         private readonly IUnitOfWork _uow;
+
+        /// <summary>
+        /// Сервис, управляющий логикой генерации и валидации токенов сброса пароля.
+        /// </summary>
         private readonly IPasswordResetService _prService;
+
+        /// <summary>
+        /// Конфигурация приложения (доступ к SMTP и фронтенду).
+        /// </summary>
         private readonly IConfiguration _config;
 
+        /// <summary>
+        /// Создает экземпляр контроллера восстановления пароля.
+        /// </summary>
+        /// <param name="uow">Интерфейс для доступа к репозиториям.</param>
+        /// <param name="prService">Сервис токенов сброса пароля.</param>
+        /// <param name="config">Конфигурация приложения.</param>
         public PasswordController(IUnitOfWork uow, IPasswordResetService prService, IConfiguration config)
         {
             _uow = uow;
@@ -22,6 +43,12 @@ namespace VlaDO.Controllers
             _config = config;
         }
 
+        /// <summary>
+        /// Обрабатывает запрос на восстановление пароля по email.
+        /// Генерирует токен сброса и отправляет ссылку на почту пользователя.
+        /// </summary>
+        /// <param name="dto">DTO с адресом электронной почты пользователя.</param>
+        /// <returns>HTTP 200, если письмо успешно отправлено; иначе ошибка.</returns>
         [HttpPost("forgot")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto dto)
         {
@@ -79,6 +106,11 @@ namespace VlaDO.Controllers
             return Ok(new { message = "Письмо для сброса пароля отправлено" });
         }
 
+        /// <summary>
+        /// Завершает процесс восстановления пароля, используя токен и новую пару паролей.
+        /// </summary>
+        /// <param name="dto">DTO с токеном, userId, новым паролем и подтверждением.</param>
+        /// <returns>HTTP 200 при успешном сбросе пароля; иначе ошибка.</returns>
         [HttpPost("reset")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
         {

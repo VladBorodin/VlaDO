@@ -9,15 +9,35 @@ using VlaDO.Services;
 
 namespace VlaDO.Controllers;
 
+/// <summary>
+/// Контроллер для работы с пользовательскими активностями (уведомлениями).
+/// </summary>
 [ApiController]
 [Authorize]
 [Route("api/activity")]
 public class ActivityController : ControllerBase
 {
+    /// <summary>
+    /// Контекст базы данных.
+    /// </summary>
     private readonly DocumentFlowContext _ctx;
+
+    /// <summary>
+    /// Сервис проверки прав доступа.
+    /// </summary>
     private readonly IPermissionService _perm;
+    
+    /// <summary>
+    /// Сервис обработки отметок о прочтении активностей.
+    /// </summary>
     private readonly IActivityReadService _readService;
 
+    /// <summary>
+    /// Инициализирует контроллер активностей.
+    /// </summary>
+    /// <param name="ctx">Контекст базы данных.</param>
+    /// <param name="perm">Сервис прав доступа.</param>
+    /// <param name="readService">Сервис отметок о прочтении.</param>
     public ActivityController(DocumentFlowContext ctx, IPermissionService perm, IActivityReadService readService)
     {
         _ctx = ctx;
@@ -25,7 +45,11 @@ public class ActivityController : ControllerBase
         _readService = readService;
     }
 
-    /// <summary>Лента пользователя</summary>
+    /// <summary>
+    /// Получает список непрочитанных активностей пользователя.
+    /// </summary>
+    /// <param name="top">Максимальное количество записей (по умолчанию 20).</param>
+    /// <returns>Список непрочитанных активностей.</returns>
     [HttpGet]
     public async Task<IActionResult> GetMyFeed([FromQuery] int top = 20)
     {
@@ -56,6 +80,11 @@ public class ActivityController : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>
+    /// Получает последние активности пользователя для дашборда (включая прочитанные).
+    /// </summary>
+    /// <param name="top">Максимальное количество записей (по умолчанию 10).</param>
+    /// <returns>Список последних активностей.</returns>
     [HttpGet("dashboard")]
     public async Task<IActionResult> GetDashboardFeed([FromQuery] int top = 10)
     {
@@ -79,7 +108,11 @@ public class ActivityController : ControllerBase
         return Ok(items);
     }
 
-    /// <summary>Пометить уведомление прочитанным</summary>
+    /// <summary>
+    /// Помечает указанную активность как прочитанную.
+    /// </summary>
+    /// <param name="id">Идентификатор активности.</param>
+    /// <returns>Код 204 при успешной отметке.</returns>
     [HttpPatch("{id:guid}/read")]
     public async Task<IActionResult> MarkRead(Guid id)
     {
@@ -92,6 +125,12 @@ public class ActivityController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Получает постраничный список активностей пользователя.
+    /// </summary>
+    /// <param name="page">Номер страницы (по умолчанию 1).</param>
+    /// <param name="pageSize">Размер страницы (по умолчанию 10).</param>
+    /// <returns>Постраничный список активностей с информацией о прочтении.</returns>
     [HttpGet("my")]
     public async Task<IActionResult> GetMyPaginatedFeed(
     [FromQuery] int page = 1,
@@ -99,7 +138,6 @@ public class ActivityController : ControllerBase
     {
         var uid = User.GetUserId();
 
-        // набор прочитанных
         var readIds = await _ctx.ActivityReads
             .Where(ar => ar.UserId == uid)
             .Select(ar => ar.ActivityId)

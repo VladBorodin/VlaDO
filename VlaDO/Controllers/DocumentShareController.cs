@@ -10,14 +10,39 @@ using VlaDO.Services;
 
 namespace VlaDO.Controllers;
 
+/// <summary>
+/// Контроллер управления доступом к документам через токены.
+/// </summary>
 [ApiController, Authorize]
 [Route("api/documents/{docId:guid}")]
 public class DocumentTokenController : ControllerBase
 {
+    /// <summary>
+    /// Единица работы с репозиториями.
+    /// </summary>
     private readonly IUnitOfWork _uow;
+
+    /// <summary>
+    /// Сервис проверки прав доступа.
+    /// </summary>
     private readonly IPermissionService _perm;
+
+    /// <summary>
+    /// Сервис логирования действий пользователей.
+    /// </summary>
     private readonly IActivityLogger _logger;
+
+    /// <summary>
+    /// Репозиторий документов.
+    /// </summary>
     private IGenericRepository<Document> Docs => _uow.Documents;
+
+    /// <summary>
+    /// Конструктор контроллера управления токенами доступа.
+    /// </summary>
+    /// <param name="uow">Единица работы с БД.</param>
+    /// <param name="perm">Сервис прав доступа.</param>
+    /// <param name="logger">Сервис логирования.</param>
     public DocumentTokenController(IUnitOfWork uow, IPermissionService perm, IActivityLogger logger)
     {
         _uow = uow;
@@ -25,7 +50,11 @@ public class DocumentTokenController : ControllerBase
         _logger = logger;
     }
 
-    // ───────── список всех «шаров» ─────────
+    /// <summary>
+    /// Получить список всех токенов доступа к документу.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>Список токенов с указанием прав и пользователей.</returns>
     [HttpGet("tokens")]
     public async Task<IActionResult> List(Guid docId)
     {
@@ -44,7 +73,13 @@ public class DocumentTokenController : ControllerBase
         return Ok(result);
     }
 
-    // ───────── создать / обновить доступ ─────────
+    /// <summary>
+    /// Добавляет или обновляет токен доступа к документу для указанного пользователя.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <param name="dto">Данные для обновления доступа.</param>
+    /// <returns>Результат выполнения запроса.</returns>
+    /// <exception cref="KeyNotFoundException">Документ не найден.</exception>
     [HttpPost("token")]
     public async Task<IActionResult> Upsert(Guid docId, [FromBody] UpdateAccessDto dto)
     {
@@ -97,7 +132,12 @@ public class DocumentTokenController : ControllerBase
         return Ok();
     }
 
-    // ───────── отозвать доступ ─────────
+    /// <summary>
+    /// Удаляет токен доступа к документу по его идентификатору.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <param name="tokenId">Идентификатор токена.</param>
+    /// <returns>Результат выполнения: NoContent или ошибка доступа.</returns>
     [HttpDelete("token/{tokenId:guid}")]
     public async Task<IActionResult> Delete(Guid docId, Guid tokenId)
     {
@@ -128,6 +168,12 @@ public class DocumentTokenController : ControllerBase
         await _uow.CommitAsync();
         return NoContent();
     }
+
+    /// <summary>
+    /// Получает список пользователей, с которыми документ был разделён.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <returns>Список пользователей с доступом.</returns>
     [HttpGet("shared-users")]
     public async Task<IActionResult> SharedUsers(Guid docId)
     {
@@ -141,6 +187,13 @@ public class DocumentTokenController : ControllerBase
 
         return Ok(dto);
     }
+
+    /// <summary>
+    /// Удаляет токен доступа к документу для конкретного пользователя.
+    /// </summary>
+    /// <param name="docId">Идентификатор документа.</param>
+    /// <param name="userId">Идентификатор пользователя, чей доступ необходимо отозвать.</param>
+    /// <returns>Результат выполнения: NoContent или NotFound.</returns>
     [HttpDelete("token/user/{userId:guid}")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> DeleteByUser(Guid docId, Guid userId)
