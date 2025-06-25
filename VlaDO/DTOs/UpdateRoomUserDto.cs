@@ -3,8 +3,15 @@ using VlaDO.Models;
 
 namespace VlaDO.DTOs
 {
+    /// <summary>
+    /// DTO для обновления уровня доступа пользователя в комнате.
+    /// </summary>
     public class UpdateRoomUserDto
     {
-        [Required] public AccessLevel AccessLevel { get; set; }
+        /// <summary>
+        /// Новый уровень доступа.
+        /// </summary>
+        [Required]
+        public AccessLevel AccessLevel { get; set; }
     }
 }

@@ -1,8 +1,15 @@
 ﻿namespace VlaDO.DTOs
 {
+    /// <summary>
+    /// DTO для копирования документа в другую комнату.
+    /// </summary>
     public class CopyDocumentDto
     {
-        public Guid? TargetRoomId { get; set; }  // null = копия вне комнаты
+        /// <summary>
+        /// Идентификатор целевой комнаты, в которую нужно скопировать документ.
+        /// Если не указан, копия создаётся в той же комнате.
+        /// </summary>
+        public Guid? TargetRoomId { get; set; }
     }
 
 }

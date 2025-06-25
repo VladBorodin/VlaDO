@@ -3,7 +3,18 @@ using VlaDO.Models;
 
 namespace VlaDO.DTOs
 {
+    /// <summary>
+    /// DTO для обновления уровня доступа пользователя.
+    /// </summary>
     public record UpdateAccessDto(
-    Guid UserId,
-    AccessLevel AccessLevel);
+        /// <summary>
+        /// Идентификатор пользователя, чей доступ обновляется.
+        /// </summary>
+        [property: Required] Guid UserId,
+
+        /// <summary>
+        /// Новый уровень доступа.
+        /// </summary>
+        [property: Required] AccessLevel AccessLevel
+    );
 }

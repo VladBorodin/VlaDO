@@ -1,10 +1,25 @@
 ﻿namespace VlaDO.DTOs
 {
+    /// <summary>
+    /// DTO для сброса пароля пользователя.
+    /// </summary>
     public class ResetPasswordDto
     {
+        /// <summary>
+        /// Идентификатор пользователя.
+        /// </summary>
         public Guid UserId { get; set; }
-        public string Token { get; set; } = default!;     // :contentReference[oaicite:0]{index=0}
+        /// <summary>
+        /// Токен для подтверждения сброса пароля.
+        /// </summary>
+        public string Token { get; set; } = default!;
+        /// <summary>
+        /// Новый пароль.
+        /// </summary>
         public string NewPassword { get; set; } = default!;
+        /// <summary>
+        /// Подтверждение нового пароля.
+        /// </summary>
         public string ConfirmPassword { get; set; } = default!;
     }
 }

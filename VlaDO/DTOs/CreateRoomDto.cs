@@ -1,9 +1,20 @@
 ﻿using VlaDO.Models;
 
-namespace VlaDO.DTOs.Room;
-public class CreateRoomDto
+namespace VlaDO.DTOs.Room
 {
-    public string Title { get; set; } = string.Empty;
-    /// <summary>Уровень доступа по умолчанию для приглашённых (0-Read, 1-Edit, 2-Full)</summary>
-    public AccessLevel DefaultAccessLevel { get; set; }
+    /// <summary>
+    /// DTO-модель для создания новой комнаты.
+    /// </summary>
+    public class CreateRoomDto
+    {
+        /// <summary>
+        /// Название комнаты, которое будет отображаться пользователям.
+        /// </summary>
+        public string Title { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Уровень доступа, который по умолчанию получают новые участники комнаты.
+        /// </summary>
+        public AccessLevel DefaultAccessLevel { get; set; }
+    }
 }
