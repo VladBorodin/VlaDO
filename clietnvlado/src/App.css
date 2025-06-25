@@ -602,3 +602,31 @@ body.dark .btn-warning:hover {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ─── ТЁМНАЯ ТЕМА: кастомная пагинация ────────────── */
+body.dark .pagination .page-item .page-link {
+  background: linear-gradient(135deg, #800020, #4a4a4a); /* бордово-серый */
+  color: #f8f9fa;
+  border: 1px solid #5a5a5a;
+  transition: background 0.3s, transform 0.2s;
+  border-radius: 0.375rem;
+}
+
+body.dark .pagination .page-item.active .page-link {
+  background: linear-gradient(135deg, #a0002f, #666666);
+  border-color: #993355;
+  font-weight: bold;
+  box-shadow: 0 0 0.25rem rgba(255, 0, 80, 0.25);
+}
+
+body.dark .pagination .page-item .page-link:hover {
+  background: linear-gradient(135deg, #a52a2a, #555);
+  transform: scale(1.05);
+}
+
+body.dark .pagination .page-item.disabled .page-link {
+  background: #2a2a2a;
+  color: #777;
+  border-color: #444;
+  cursor: not-allowed;
+}

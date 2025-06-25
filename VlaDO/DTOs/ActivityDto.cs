@@ -10,7 +10,8 @@ namespace VlaDO.DTOs
         JsonDocument? Meta,
         string? Details,
         DateTime CreatedAt,
-        ActivityType Type
+        ActivityType Type,
+        Guid? RoomId = null
     )
     {
         public ActivityDto(Activity a) : this(
@@ -18,8 +19,12 @@ namespace VlaDO.DTOs
             string.IsNullOrWhiteSpace(a.PayloadJson) ? null : JsonDocument.Parse(a.PayloadJson),
             a.PayloadJson,
             a.CreatedAt,
-            a.Type
+            a.Type,
+            a.RoomId
         )
         { }
     }
+    public record ActivityDtoExt(ActivityDto Activity, bool IsRead);
+    public record PagedResult<T>(IReadOnlyList<T> Items, int TotalPages);
+
 }

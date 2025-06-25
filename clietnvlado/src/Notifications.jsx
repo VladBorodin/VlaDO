@@ -55,6 +55,22 @@ export default function Notifications({ theme, onActivitiesRead }) {
       i.id === activity.id ? { ...i, isRead: true } : i));
   };
 
+  const respondRoom = async (activity, accepted) => {
+    const roomId = activity.roomId;
+    if (!roomId) return;
+
+    const url = accepted
+      ? `/rooms/${roomId}/accept`
+      : `/rooms/${roomId}/decline`;
+
+    await api.post(url);
+    await api.patch(`/activity/${activity.id}/read`);
+
+    setItems(prev =>
+      prev.map(i => i.id === activity.id ? { ...i, isRead: true } : i));
+  };
+
+
   const handleClear = async () => {
     const toMark = items
       .filter(i => !i.isRead && i.type !== "InvitedToContacts")
@@ -74,7 +90,7 @@ export default function Notifications({ theme, onActivitiesRead }) {
         return `📄 Добавлен документ «${meta?.Name ?? "(без названия)"}».`;
 
       case "UpdatedDocument":
-        return `✏️ Обновлён документ «${meta?.Name ?? "(без названия)"}» (версия ${meta?.Version ?? "?"}).`;
+        return `✏️ Обновлён документ «${meta?.Name ?? "(без названия)"}» v${meta?.Version}-${meta?.ForkPath || '0'}.`;
 
       case "DeletedDocument":
         return `🗑️ Удалён документ «${meta?.Name ?? "(без названия)"}».`;
@@ -106,6 +122,9 @@ export default function Notifications({ theme, onActivitiesRead }) {
       case "DeclinedRoom":
         return `🚫 Приглашение для ${meta?.UserName} в комнату отклонено.`;
 
+      case "RevokedRoom":
+        return `🚫 Отозван доступ к комнате «${meta?.RoomTitle}».`;
+
       case "UpdatedRoomAccess":
         return `🔧 Изменён уровень доступа в комнате «${meta?.RoomTitle ?? "(без названия)"}».`;
 
@@ -129,7 +148,6 @@ export default function Notifications({ theme, onActivitiesRead }) {
   function renderActivity(a, respondContact, theme) {
   const dt = new Date(a.createdAt).toLocaleString();
 
-  // Базовая обёртка, чтобы не дублировать <div className="small">...
   const Wrap = ({ children, extra }) => (
     <>
       <div className="small">{dt}</div>
@@ -139,7 +157,26 @@ export default function Notifications({ theme, onActivitiesRead }) {
   );
 
   switch (a.type) {
-      /* 1️⃣ Приглашение в контакты — кнопки + жирное, пока не ответили */
+    case "InvitedToRoom":
+      return (
+        <Wrap
+          extra={!a.isRead && (
+            <div className="d-flex gap-2">
+              <button className="btn btn-sm btn-success"
+                      onClick={() => respondRoom(a, true)}>
+                Принять
+              </button>
+              <button className="btn btn-sm btn-outline-danger"
+                      onClick={() => respondRoom(a, false)}>
+                Отклонить
+              </button>
+            </div>
+          )}
+        >
+          ✉️ Приглашение в комнату «<strong>{a.meta?.RoomTitle}</strong>»
+          от {a.meta?.UserName}.
+        </Wrap>
+      );
       case "InvitedToContacts":
         return (
           <Wrap
@@ -148,15 +185,15 @@ export default function Notifications({ theme, onActivitiesRead }) {
                 <div className="d-flex gap-2">
                   <button
                     className="btn btn-sm btn-success"
-                    onClick={() => respondContact(a.id, true)}
+                    onClick={() => respondContact(a, true)}
                   >
                     Принять
                   </button>
                   <button
                     className="btn btn-sm btn-outline-danger"
-                    onClick={() => respondContact(a.id, false)}
+                    onClick={() => respondContact(a, false)}
                   >
-                    Блок
+                    Отклонить
                   </button>
                 </div>
               )
@@ -166,7 +203,6 @@ export default function Notifications({ theme, onActivitiesRead }) {
           </Wrap>
         );
 
-      /* 2️⃣ Принятие / отклонение */
       case "AcceptedContact":
         return (
           <Wrap>
@@ -181,7 +217,6 @@ export default function Notifications({ theme, onActivitiesRead }) {
           </Wrap>
         );
 
-      /* 3️⃣ Любые другие типы — используем старую formatActivity */
       default:
         return (
           <Wrap>{formatActivity(a)}</Wrap>
@@ -212,9 +247,13 @@ export default function Notifications({ theme, onActivitiesRead }) {
 
       {open && (
         <div
-          className={`dropdown-menu dropdown-menu-start shadow 
-                    ${theme === "dark" ? "bg-dark text-light" : ""} show`}
-          style={{ minWidth: 320, maxHeight: 420, overflowY: "auto" }}
+          className={`dropdown-menu dropdown-menu-start shadow ${theme==="dark"?"bg-dark text-light":""} show`}
+            style={{
+              minWidth: 320,
+              maxHeight: 420,
+              overflowY: "auto",
+              transform: "translateX(-100%)"  /* ← главное */
+            }}
         >
           {/* Заголовок */}
           <div className="dropdown-header d-flex justify-content-between">
@@ -231,15 +270,8 @@ export default function Notifications({ theme, onActivitiesRead }) {
 
           {/* Список уведомлений */}
           {items.map(a => (
-            <div
-              key={a.id}
-              className={`dropdown-item${a.isRead ? "" : " fw-bold"}`}
-            >
-              {renderActivity(
-                a,
-                (activity, accepted) => respondContact(activity, accepted),
-                theme
-              )}
+            <div key={a.id} className={`dropdown-item${a.isRead?"":" fw-bold"}`}>
+              {renderActivity(a, respondContact, theme)}
             </div>
           ))}
         </div>

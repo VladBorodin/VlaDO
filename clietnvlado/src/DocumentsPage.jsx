@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { FaSun, FaMoon, FaFolderOpen, FaArrowLeft, FaTimes } from "react-icons/fa";
+import { FaSun, FaMoon, FaFolderOpen, FaArrowLeft, FaTimes, FaPlus } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import api from "./api";
 import { useAlert } from "./contexts/AlertContext"
 import DocumentPreviewModal from "./DocumentPreviewModal";
 import LoadingSpinner from "./LoadingSpinner";
+import Notifications from "./Notifications";
+import LocalTime from "./components/LocalTime";
 
 export default function DocumentsPage() {
   const navigate = useNavigate();
@@ -95,9 +97,9 @@ export default function DocumentsPage() {
     }
   };
 
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("theme") || "light"
-  );
+  const [theme, setTheme] = useState(() =>(
+    document.body.classList.contains("dark") ? "dark" : "light"
+  ));
   
   useEffect(() => {
     document.body.classList.toggle("dark", theme === "dark");
@@ -529,6 +531,14 @@ export default function DocumentsPage() {
           </button>
 
           <div className="ms-auto d-flex align-items-center gap-3">
+            <Link
+              to="/documents/create"
+              className="btn btn-success btn-sm"
+              title="Создать документ"
+            >
+              <FaPlus className="me-1" /> Документ
+            </Link>
+            <Notifications theme={theme} />
             <button
               className="btn btn-link"
               title="Переключить тему"
@@ -568,7 +578,12 @@ export default function DocumentsPage() {
             </li>
           ))}
         </ul>
-
+{/* Рабочая область */}
+<div className="doc-row d-flex flex-wrap gap-4">
+  {/* ЛЕВАЯ панель — таблица документов */}
+  <div className="left-pane flex-grow-1">
+    <div className={`card shadow h-100 ${cardBg(theme)}`}>
+      <div className="table-responsive"></div>
         {/* Таблица документов */}
         <div className="table-responsive">
           <table className={`table table-hover align-middle ${cardBg(theme)} ${theme==="dark" ? "table-dark" : ""}`}>
@@ -622,13 +637,7 @@ export default function DocumentsPage() {
                     <td>
                       {`v${doc.version}${doc.forkPath && doc.forkPath !== "0" ? `-${doc.forkPath}` : ""}`}
                     </td>
-                    <td>{new Date(doc.createdAt).toLocaleString("ru-RU", {
-                      day: "2-digit",
-                      month: "long",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}</td>
+                    <td><LocalTime utc={doc.createdAt} /></td>
                     <td>{doc.createdBy?.name || "-"}</td>
                     <td>
                       {doc.previousVersionId ? (
@@ -665,6 +674,9 @@ export default function DocumentsPage() {
             </tbody>
           </table>
         </div>
+        </div>
+    </div>
+  </div>
       </div>
 
       {/* Футер */}

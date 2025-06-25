@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pipelines.Sockets.Unofficial.Buffers;
+using StackExchange.Redis;
 using VlaDO.DTOs;
 using VlaDO.DTOs.Room;
 using VlaDO.Extensions;
@@ -33,16 +34,15 @@ public class RoomController : ControllerBase
         var room = await _uow.Rooms.GetByIdAsync(roomId);
         var user = await _uow.Users.GetBriefByIdAsync(ownerId);
 
-        await _svc.AddUserAsync(roomId, dto.UserId, dto.AccessLevel);
-        await _uow.CommitAsync();
-
         await _logger.LogAsync(
             ActivityType.InvitedToRoom,
             authorId: ownerId,
             subjectId: roomId,
-            meta: new { RoomTitle = room.Title, UserName = user.Name },
-            toUserId: dto.UserId
+            toUserId: dto.UserId,
+            meta: new { RoomTitle = room.Title, UserName = user.Name }
         );
+
+        await _uow.CommitAsync();
 
         return Ok();
     }
@@ -163,6 +163,13 @@ public class RoomController : ControllerBase
         if (room == null) return NotFound();
         if (room.OwnerId != userId) return Forbid();
 
+        var participants = (await _uow.RoomUsers
+            .FindAsync(ru => ru.RoomId == roomId))
+            .Select(ru => ru.UserId)
+            .Append(userId)
+            .Distinct()
+            .ToList();
+
         var docs = await _uow.Documents.FindAsync(d => d.RoomId == roomId);
         int count = 0;
         foreach (var d in docs)
@@ -175,20 +182,21 @@ public class RoomController : ControllerBase
 
         var rus = await _uow.RoomUsers.FindAsync(ru => ru.RoomId == roomId);
 
-        await _logger.LogAsync(
+        await _logger.LogForUsersAsync(
             ActivityType.DeletedRoom,
+            participants,
             authorId: userId,
-            subjectId: roomId,
+            roomId: roomId,
             meta: new { RoomTitle = room.Title, Count = count }
         );
 
         await _uow.RoomUsers.DeleteRangeAsync(rus);
-
         await _uow.Rooms.DeleteAsync(room);
-
         await _uow.CommitAsync();
+
         return NoContent();
     }
+
     [HttpPatch("{roomId:guid}/users/{userId:guid}")]
     public async Task<IActionResult> UpdateUser(Guid roomId, Guid userId,
                                             [FromBody] UpdateRoomUserDto dto)
@@ -205,7 +213,16 @@ public class RoomController : ControllerBase
     public async Task<IActionResult> RemoveUser(Guid roomId, Guid userId)
     {
         var ownerId = User.GetUserId();
+        var room = await _uow.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
         if (!await _uow.Rooms.IsRoomOwnerAsync(roomId, ownerId)) return Forbid();
+
+        await _logger.LogAsync(
+            ActivityType.RevokedRoom,
+            authorId: ownerId,
+            subjectId: roomId,
+            toUserId: userId,
+            meta: new { RoomTitle = room.Title}
+        );
 
         await _uow.Rooms.RemoveUserFromRoomAsync(roomId, userId);
         await _uow.CommitAsync();
@@ -253,4 +270,60 @@ public class RoomController : ControllerBase
         var rooms = await _uow.DocumentRepository.GetLastActiveRoomsAsync(uid, top);
         return Ok(rooms);
     }
+    [HttpPost("{roomId:guid}/accept")]
+    public async Task<IActionResult> AcceptInvite(Guid roomId)
+    {
+        var uid = User.GetUserId();
+        var room = await _uow.Rooms.GetByIdAsync(roomId);
+        if (room is null) return NotFound();
+
+        var hadInvite = await _uow.Activities.AnyAsync(a =>
+            a.Type == ActivityType.InvitedToRoom &&
+            a.RoomId == roomId &&
+            a.UserId == uid);
+
+        if (!hadInvite) return Forbid();
+
+        await _uow.RoomUsers.AddAsync(new RoomUser
+        {
+            RoomId = roomId,
+            UserId = uid,
+            AccessLevel = AccessLevel.Read
+        });
+        await _uow.CommitAsync();
+
+        await _logger.LogAsync(
+            ActivityType.AcceptedRoom,
+            authorId: uid,
+            subjectId: roomId,
+            toUserId: room.OwnerId,
+            meta: new { UserName = (await _uow.Users.GetBriefByIdAsync(uid)).Name });
+
+        return NoContent();
+    }
+
+    [HttpPost("{roomId:guid}/decline")]
+    public async Task<IActionResult> DeclineInvite(Guid roomId)
+    {
+        var uid = User.GetUserId();
+        var room = await _uow.Rooms.GetByIdAsync(roomId);
+        if (room is null) return NotFound();
+
+        var hadInvite = await _uow.Activities.AnyAsync(a =>
+            a.Type == ActivityType.InvitedToRoom &&
+            a.RoomId == roomId &&
+            a.UserId == uid);
+
+        if (!hadInvite) return Forbid();
+
+        await _logger.LogAsync(
+            ActivityType.DeclinedRoom,
+            authorId: uid,
+            subjectId: roomId,
+            toUserId: room.OwnerId,
+            meta: new { UserName = (await _uow.Users.GetBriefByIdAsync(uid)).Name });
+
+        return NoContent();
+    }
+
 }

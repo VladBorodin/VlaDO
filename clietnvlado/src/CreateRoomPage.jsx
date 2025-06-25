@@ -10,9 +10,9 @@ import LoadingSpinner from "./LoadingSpinner";
 export default function CreateRoomPage() {
   const navigate = useNavigate();
 
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("theme") || "light"
-  );
+  const [theme, setTheme] = useState(() =>(
+    document.body.classList.contains("dark") ? "dark" : "light"
+  ));
   
   useEffect(() => {
     document.body.classList.toggle("dark", theme === "dark");

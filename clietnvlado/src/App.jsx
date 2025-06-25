@@ -13,6 +13,7 @@ import RoomPage from "./RoomPage";
 import CreateDocumentPage from './CreateDocumentPage';
 import UpdateDocumentPage from "./UpdateDocumentPage";
 import RoomManagerPage from "./RoomManagerPage";
+import ActivitiesPage from "./ActivitiesPage";
 
 export default function App() {
   const [token, setToken] = useState(() =>
@@ -71,22 +72,15 @@ export default function App() {
             element={<UpdateDocumentPage />} 
         />
 
-        <Route
-          path="/rooms/:id"
-          element={token ? <RoomPage /> : <Navigate to="/login" replace />}
-        />
+        <Route path="/rooms/:id" element={token ? <RoomPage /> : <Navigate to="/login" replace />}/>
 
         <Route path="/room-manager" element={<RoomManagerPage />} />
 
-        <Route
-          path="/forgot-password"
-          element={token ? <Navigate to="/" replace/> : <ForgotPasswordPage />}
-        />
+        <Route path="/activities" element={<ActivitiesPage />} />
 
-        <Route
-          path="/reset-password"
-          element={<ResetPassword />}
-        />
+        <Route path="/forgot-password" element={token ? <Navigate to="/" replace/> : <ForgotPasswordPage />}/>
+
+        <Route path="/reset-password" element={<ResetPassword />}/>
 
         <Route path="/documents/create" element={token ? <CreateDocumentPage /> : <Navigate to="/login" />} />
 

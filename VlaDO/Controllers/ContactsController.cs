@@ -53,7 +53,10 @@ namespace VlaDO.Controllers
                 authorId: Me,
                 subjectId: newContact.Id,
                 toUserId: contactId,
-                meta: new { UserName = user.Name }
+                meta: new { 
+                    UserName = user.Name,
+                    ContactId = Me
+                }
             );
 
             return Ok();
@@ -71,35 +74,32 @@ namespace VlaDO.Controllers
             await _uow.CommitAsync();
             return NoContent();
         }
-        //  /api/contacts/{contactId}/accept
+
         [HttpPost("{contactId:guid}/accept")]
         public async Task<IActionResult> Accept(Guid contactId)
         {
-            var me = Me;                           // отвечает "я"
-            var requester = contactId;             // инициатор
+            var me = Me;
+            var requester = contactId;
 
-            // ── 1. ищем исходный запрос ───────────────────────────────
             var request = await _uow.Contacts.FirstOrDefaultAsync(
                 c => c.UserId == requester && c.ContactId == me);
             if (request is null) return NotFound();
 
-            // ── 2. создаём «обратный» контакт (двусторонняя дружба) ───
             if (!await _uow.Contacts.AnyAsync(c => c.UserId == me && c.ContactId == requester))
-                await _uow.Contacts.AddAsync(new UserContact  // ответная запись
+                await _uow.Contacts.AddAsync(new UserContact
                 {
                     Id = Guid.NewGuid(),
                     UserId = me,
                     ContactId = requester
                 });
 
-            // ── 3. лог инициатору, что приняли ────────────────────────
             var meName = (await _uow.Users.GetBriefByIdAsync(me))?.Name ?? "Пользователь";
 
             await _logger.LogAsync(
                 ActivityType.AcceptedContact,
-                authorId: me,              // кто принял
-                subjectId: request.Id,      // id связи
-                toUserId: requester,      // инициатор увидит
+                authorId: me,
+                subjectId: request.Id,
+                toUserId: requester,
                 meta: new { UserName = meName }
             );
 
@@ -107,7 +107,6 @@ namespace VlaDO.Controllers
             return NoContent();
         }
 
-        //  /api/contacts/{contactId}/block
         [HttpPost("{contactId:guid}/block")]
         public async Task<IActionResult> Block(Guid contactId)
         {
@@ -118,7 +117,6 @@ namespace VlaDO.Controllers
                 c => c.UserId == requester && c.ContactId == me);
             if (request is null) return NotFound();
 
-            // ── лог инициатору, что отклонено ──────────────────────────
             var meName = (await _uow.Users.GetBriefByIdAsync(me))?.Name ?? "Пользователь";
 
             await _logger.LogAsync(
@@ -129,8 +127,7 @@ namespace VlaDO.Controllers
                 meta: new { UserName = meName }
             );
 
-            // ── удаляем запрос и помечаем прочитанным ─────────────────
-            await _uow.Contacts.DeleteAsync(request.Id);
+            await _uow.Contacts.DeleteAsync(request);
 
             await _uow.CommitAsync();
             return NoContent();

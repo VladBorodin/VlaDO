@@ -157,7 +157,7 @@ export default function UpdateDocumentPage() {
     <div className="container mt-4">
       <div className="card shadow-sm">
         <div className="d-flex justify-content-between align-items-center mb-3">
-            <button className="btn btn-outline-secondary" onClick={() => navigate("/")}>
+            <button className="btn btn-outline-secondary" onClick={() => navigate(-1)}>
               <FaArrowLeft className="me-1" /> Назад
             </button>
             <button

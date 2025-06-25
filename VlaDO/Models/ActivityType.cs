@@ -18,6 +18,7 @@
         DeclinedRoom,
         UpdatedRoomAccess,
         DeletedRoom,
+        RevokedRoom,
 
         InvitedToContacts,
         AcceptedContact,

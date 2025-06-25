@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { FaSun, FaMoon, FaFolderOpen, FaArrowLeft, FaTimes } from "react-icons/fa";
+import { FaSun, FaMoon, FaFolderOpen, FaArrowLeft, FaTimes, FaPlus } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import api from "./api";
 import { useAlert } from "./contexts/AlertContext"
 import DocumentPreviewModal from "./DocumentPreviewModal";
 import { LevelLabel, AccessLevelOptions } from "./constants";
 import LoadingSpinner from "./LoadingSpinner";
-
+import Notifications from "./Notifications";
+import LocalTime from "./components/LocalTime";
 
 export default function RoomManagerPage() {
 	const navigate = useNavigate();
@@ -180,9 +181,9 @@ export default function RoomManagerPage() {
 		}
 	};
 
-	const [theme, setTheme] = useState(
-		() => localStorage.getItem("theme") || "light"
-	);
+	const [theme, setTheme] = useState(() =>(
+		document.body.classList.contains("dark") ? "dark" : "light"
+	));
 	
     useEffect(() => {
       document.body.classList.toggle("dark", theme === "dark");
@@ -719,6 +720,19 @@ export default function RoomManagerPage() {
 		}
 	};
 
+	const removeUserFromRoom = async () => {
+		if (!newUserId) return;
+
+		try {
+			await api.delete(`/rooms/${roomForAddUser.id}/users/${newUserId}`);
+			push("Пользователь удалён из комнаты", "success");
+			setAddUserModal(false);
+		} catch {
+			push("Не удалось удалить пользователя", "danger");
+		}
+	};
+
+
 	const allowedKeys = activeRoomTab === ROOM_TABS.archive.key ? ["unarchive", "delete"]
     : (accessMatrix[selectedDoc?.accessLevel] || []);
 
@@ -761,6 +775,14 @@ export default function RoomManagerPage() {
 					</button>
 
 					<div className="ms-auto d-flex align-items-center gap-3">
+						<Link
+							to="/documents/create"
+							className="btn btn-success btn-sm"
+							title="Создать документ"
+						>
+							<FaPlus className="me-1" /> Документ
+						</Link>
+						<Notifications theme={theme} />
 						<button
 							className="btn btn-link"
 							title="Переключить тему"
@@ -839,7 +861,7 @@ export default function RoomManagerPage() {
 												>
 													<td>{doc.name}</td>
 													<td>{`v${doc.version}${doc.forkPath && doc.forkPath !== '0' ? `-${doc.forkPath}` : ''}`}</td>
-													<td>{new Date(doc.createdAt).toLocaleString('ru-RU')}</td>
+													<td><LocalTime utc={doc.createdAt} /></td>
 													<td>{doc.createdBy?.name || '-'}</td>
 													<td>
 														{doc.previousVersionId ? (
@@ -1502,18 +1524,20 @@ export default function RoomManagerPage() {
 										<option key={u.id} value={u.id}>{u.name}</option>
 									))}
 								</select>
-
-								{/* ─ Уровень доступа ─ */}
-								<label className="form-label">Уровень доступа</label>
-								<select className="form-select" value={newUserLevel} onChange={e=>setNewUserLevel(e.target.value)}>
-									{Object.entries(LevelLabel).map(([val,txt])=>(
-										<option key={val} value={val}>{txt}</option>
-									))}
-								</select>
 							</div>
 
 							{/* footer */}
 							<div className={`modal-footer ${modalBodyClass(theme)}`}>
+								<button
+									className="btn btn-link text-danger me-auto"
+									style={{ opacity: 0.8 }}
+									disabled={!newUserId}
+									onClick={removeUserFromRoom}
+									title="Удалить пользователя из комнаты"
+								>
+									<FaTimes className="me-1" />
+									Удалить
+								</button>
 								<button className="btn btn-secondary" onClick={()=>setAddUserModal(false)}>
 									Отмена
 								</button>

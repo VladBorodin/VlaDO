@@ -3,6 +3,7 @@ import { FaPlus, FaMoon, FaSun, FaArrowLeft } from "react-icons/fa";
 import { useNavigate, Link } from "react-router-dom";
 import api from "./api";
 import LoadingSpinner from "./LoadingSpinner";
+import { useAlert } from "./contexts/AlertContext";
 
 export default function CreateDocumentPage() {
   const [rooms, setRooms] = useState([]);
@@ -16,10 +17,9 @@ export default function CreateDocumentPage() {
   const fileInputRef = useRef();
   const navigate = useNavigate();
   const [prevHash, setPrevHash] = useState("");
-  const [darkMode, setDarkMode] = useState(() => 
-    localStorage.getItem("theme") === "dark" ||
-    (window.matchMedia("(prefers-color-scheme: dark)").matches &&
-    !localStorage.getItem("theme"))
+  const { push } = useAlert();
+  const [darkMode, setDarkMode] = useState(
+    () => document.body.classList.contains("dark")
   );
   const [dragActive, setDragActive] = useState(false);
 
@@ -85,11 +85,11 @@ export default function CreateDocumentPage() {
       }
 
       await api.post(endpoint, form);
-      alert("Документ успешно загружен");
+      push("Документ успешно загружен", "success");
       navigate("/documents");
     } catch (err) {
       console.error(err);
-      alert("Ошибка при загрузке документа");
+      push("Ошибка при загрузке документа", "danger");
     } finally {
       setLoading(false);
     }
@@ -106,7 +106,7 @@ export default function CreateDocumentPage() {
     <div className="container mt-4">
       <div className="card shadow-sm">
         <div className="d-flex justify-content-between align-items-center mb-3">
-            <button className="btn btn-outline-secondary" onClick={() => navigate("/")}>
+            <button className="btn btn-outline-secondary" onClick={() => navigate(-1)}>
               <FaArrowLeft className="me-1" /> Назад
             </button>
             <button

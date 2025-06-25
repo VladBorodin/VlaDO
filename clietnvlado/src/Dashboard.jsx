@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import {FaMoon,FaSun,FaSignOutAlt,FaBell,FaPlus,FaFolder,FaUserCircle,FaAddressBook} from "react-icons/fa";
+import {FaMoon,FaSun,FaSignOutAlt,FaBell,FaPlus,FaFolder,FaUserCircle,FaAddressBook,FaHistory} from "react-icons/fa";
 import { Link } from "react-router-dom";
 import ProfileModal from "./ProfileModal";
 import ContactsModal from "./ContactsModal";
@@ -13,9 +13,9 @@ export default function Dashboard({ onLogout }) {
   const [showProfile, setShowProfile] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
   const [user, setUser] = useState(null);
-  const [theme, setTheme] = useState(() =>
-      localStorage.getItem("theme") || "light"
-  );
+  const [theme, setTheme] = useState(() =>(
+    document.body.classList.contains("dark") ? "dark" : "light"
+  ));
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -87,49 +87,59 @@ export default function Dashboard({ onLogout }) {
     const dt = new Date(createdAt).toLocaleString();
 
     switch (type) {
+      // ─── Документы ──────────────────────────────────────────────
       case "CreatedDocument":
-        return `Документ создан: ${meta?.Name ?? "(без названия)"}`;
+          return `📄 Добавлен документ «${meta?.Name ?? "(без названия)"}».`;
       case "UpdatedDocument":
-        return `Обновление документа: ${meta?.Name ?? ""}`;
+          return `✏️ Обновлён документ «${meta?.Name ?? "(без названия)"}» v${meta?.Version}-${meta?.ForkPath || '0'}.`;
       case "DeletedDocument":
-        return `Документ удалён: ${meta?.Name ?? ""}`;
-      case "RenamedDocument":
-        return `Переименован: ${meta?.OldName} → ${meta?.NewName}`;
+          return `🗑️ Удалён документ «${meta?.Name ?? "(без названия)"}».`;
       case "ArchivedDocument":
-        return `Архивирован документ: ${meta?.Name ?? ""}`;
+          return `📦 Архивирован документ ${meta?.Name} v${meta?.Version}-${meta?.ForkPath || "0"}.`;
+      case "RenamedDocument":
+          return `🔖 Переименован документ: «${meta?.OldName}» → «${meta?.NewName}».`;
 
+      // ─── Токены ────────────────────────────────────────────────
       case "IssuedToken":
-        return `Выдан доступ к документу`;
+          return `🔑 Выдан доступ к документу «${meta?.Name}».`;
       case "UpdatedToken":
-        return `Изменён доступ к документу`;
+          return `🔐 Обновлён доступ к документу «${meta?.Name}».`;
       case "RevokedToken":
-        return `Отозван доступ к документу`;
+          return `🚫 Отозван доступ к документу «${meta?.Name}».`;
 
+      // ─── Комнаты ───────────────────────────────────────────────
       case "CreatedRoom":
-        return `Создана комната: ${meta?.RoomTitle ?? ""}`;
+          return `🆕 Создана комната «${meta?.RoomTitle ?? "(без названия)"}».`;
       case "InvitedToRoom":
-        return `Приглашение в комнату: ${meta?.RoomTitle ?? ""}`;
+          return `✉️ Приглашение в комнату «${meta?.RoomTitle ?? "(без названия)"}» от ${meta?.UserName}.`;
+      case "AcceptedRoom":
+          return `✅ Приглашение для ${meta?.UserName} в комнату принято.`;
+      case "DeclinedRoom":
+          return `🚫 Приглашение для ${meta?.UserName} в комнату отклонено.`;
+      case "RevokedRoom":
+          return `🚫 Отозван доступ к комнате «${meta?.RoomTitle}».`;
       case "UpdatedRoomAccess":
-        return `Изменён доступ в комнату: ${meta?.RoomTitle ?? ""}`;
+          return `🔧 Изменён уровень доступа в комнате «${meta?.RoomTitle ?? "(без названия)"}».`;
       case "DeletedRoom":
-        return `Удалена комната: ${meta?.RoomTitle ?? ""}`;
+          return `❌ Удалена комната «${meta?.RoomTitle ?? "(без названия)"}» с ${meta?.Count ?? "0"} документами.`;
 
+      // ─── Контакты ───────────────────────────────────────────────
       case "InvitedToContacts":
-        return `Запрос на добавление в контакты`;
+          return `👤 Запрос на добавление в контакты от ${meta?.UserName}.`;
       case "AcceptedContact":
-        return `Контакт принят`;
+          return `✅ Ваш запрос принял ${meta?.UserName}.`;
       case "DeclinedContact":
-        return `Контакт отклонён`;
+          return `🚫 Ваш запрос отклонил ${meta?.UserName}.`;
 
       default:
-        return "Неизвестная активность";
+          return "ℹ️ Неизвестная активность";
     }
   }
 
   if (isLoading) {
     return (
       <div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${theme === "dark" ? "bg-dark" : "bg-light"}`}>
-        <LoadingSpinner size={200} />
+        <LoadingSpinner size={400} />
       </div>
     );
   }
@@ -233,7 +243,7 @@ export default function Dashboard({ onLogout }) {
               </div>
               <ul className="list-group list-group-flush">
                 {rooms.length === 0 && (
-                  <li className="list-group-item text-muted text-center">Нет комнат</li>
+                  <li className="list-group-item text-muted text-center">Нет активных комнат</li>
                 )}
                 {rooms.map(r => (
                   <li key={r.id}
@@ -255,10 +265,15 @@ export default function Dashboard({ onLogout }) {
                 <div className="card-header bg-transparent fw-bold">
                   Последние активности
                 </div>
-                  <Link to="/documents/create" className="btn btn-success btn-sm">
-                      <FaPlus className="me-1" /> Документ
+                  {/* Мои активности */}
+                  <Link
+                    to="/activities"
+                    className="btn btn-primary btn-sm"
+                    title="История моих действий"
+                  >
+                    <FaHistory className="me-1" /> Мои&nbsp;активности
                   </Link>
-              </div>
+                </div>
               <div className="card-body">
                 {activities.length > 0 ? (
                   activities.map(a => (
@@ -289,14 +304,14 @@ export default function Dashboard({ onLogout }) {
               <div className="card-header bg-transparent d-flex justify-content-between align-items-center">
                 <span className="fw-bold">Последние документы</span>
                 <Link to="/documents" className="btn btn-primary btn-sm" title="Менеджер файлов">
-                  <FaFolder className="me-1" /> Менеджер
+                  <FaFolder className="me-1" /> Мои документы
                 </Link>
               </div>
               <div className="card-body">
                 {documents.length === 0 && (
-                  <div className="text-muted text-center py-3">
+                  <li className="list-group-item text-muted text-center">
                     Нет документов
-                  </div>
+                  </li>
                 )}
                 <ul className="list-group list-group-flush">
                   {documents.map(d => (
