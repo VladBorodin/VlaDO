@@ -1,11 +1,23 @@
-﻿using System.ComponentModel.DataAnnotations;
-
-namespace VlaDO.Models
+﻿namespace VlaDO.Models
 {
+    /// <summary>
+    /// Уровень доступа пользователя к документу или комнате.
+    /// </summary>
     public enum AccessLevel
     {
+        /// <summary>
+        /// Только чтение — пользователь может просматривать, но не изменять.
+        /// </summary>
         Read = 0,
+
+        /// <summary>
+        /// Редактирование — пользователь может изменять содержимое.
+        /// </summary>
         Edit = 1,
+
+        /// <summary>
+        /// Полный доступ — пользователь может удалять, перемещать и управлять правами доступа.
+        /// </summary>
         Full = 2
     }
 }
