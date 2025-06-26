@@ -9,6 +9,7 @@ using VlaDO.Repositories.Documents;
 using VlaDO.Repositories.Rooms;
 using VlaDO.Services;
 using System.Text.Json.Serialization;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,9 +32,20 @@ builder.Services.AddSwaggerGen(c =>
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        { new OpenApiSecurityScheme{ Reference = new OpenApiReference{ Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() }
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
     });
+
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    c.IncludeXmlComments(xmlPath);
 });
+
 
 // ───── database  (SQLite; строка в appsettings.json)
 builder.Services.AddDbContext<DocumentFlowContext>(opt =>
@@ -103,7 +115,9 @@ if (app.Environment.IsDevelopment())
 }
 
 
+app.UseDefaultFiles();
 app.UseStaticFiles();
+
 app.UseRouting();
 
 app.UseCors("AllowFrontend");
