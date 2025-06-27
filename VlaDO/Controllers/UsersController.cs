@@ -4,6 +4,7 @@ using Newtonsoft.Json.Linq;
 using VlaDO.DTOs;
 using VlaDO.Extensions;
 using VlaDO.Repositories;
+using BCrypt.Net;
 
 namespace VlaDO.Controllers;
 
@@ -127,5 +128,21 @@ public class UsersController : ControllerBase
         return user is null
             ? NotFound()
             : Ok(new UserBriefDto(user.Id, user.Name));
+    }
+
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePwdDto dto)
+    {
+        var userId = User.GetUserId();
+        var user = await _uow.Users.GetByIdAsync(userId);
+        if (user is null) return NotFound();
+
+        if (!BCrypt.Net.BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+            return BadRequest("Неверный текущий пароль");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        await _uow.CommitAsync();
+
+        return Ok();
     }
 }

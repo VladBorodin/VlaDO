@@ -60,9 +60,9 @@ namespace VlaDO.Controllers
                 return Forbid();
 
             var archiveRoom = await _uow.Rooms
-                .FirstOrDefaultAsync(r => r.Title == "Архив" && r.OwnerId == userId);
+                .FirstOrDefaultAsync(r => r.OwnerId == userId && r.Title == "Архив");
 
-            var forkBranch = await _uow.DocumentRepository.GetForkBranchAsync(docId);
+            var forkBranch = await _uow.DocumentRepository.GetForkBranchAsync(docId, userId);
 
             foreach (var version in forkBranch)
             {
@@ -72,12 +72,10 @@ namespace VlaDO.Controllers
                     ActivityType.ArchivedDocument,
                     authorId: userId,
                     subjectId: version.Id,
-                    meta: new { version.Name, version.Version, version.ForkPath }
-                );
+                    meta: new { version.Name, version.Version, version.ForkPath });
 
                 var tokens = await _uow.Tokens.FindAsync(t =>
-                    t.DocumentId == version.Id &&
-                    t.UserId != userId);
+                    t.DocumentId == version.Id && t.UserId != userId);
 
                 foreach (var token in tokens)
                     await _uow.Tokens.DeleteAsync(token.Id);

@@ -41,7 +41,6 @@ export default function CreateDocumentPage() {
 
   useEffect(() => {
     api.get("/rooms/my").then(r => {
-    console.log("Rooms response:", r);
     if (Array.isArray(r.data)) setRooms(r.data);
     setFadeOut(true);
     setTimeout(() => setIsLoading(false), 400);
@@ -86,12 +85,12 @@ export default function CreateDocumentPage() {
       setPrevHash(hexHash);
       const form = new FormData();
       form.append("file", file);
-      form.append("name", name); // обязательно
+      form.append("name", name);
       if (note) form.append("note", note);
       if (parentId) form.append("parentDocId", parentId);
       if (prevHash) form.append("prevHash", prevHash);
 
-      let endpoint = "/documents"; // ✅ без /api
+      let endpoint = "/documents";
       if (roomId) {
         form.append("roomId", roomId);
         endpoint = `/rooms/${roomId}/docs/create`;

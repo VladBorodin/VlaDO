@@ -89,7 +89,7 @@ export default function ProfileModal({ show, onClose, user, onUpdateUser, theme 
     setSuccess("");
     setLoading(true);
     try {
-      await api.post("/auth/change-password", {
+      await api.post("/users/change-password", {
         currentPassword: currentPwd,
         newPassword: newPwd,
       });

@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Routing.Matching;
 using Microsoft.EntityFrameworkCore;
 using Org.BouncyCastle.Asn1.Ocsp;
+using Pipelines.Sockets.Unofficial.Buffers;
 using System;
 using VlaDO.DTOs;
 using VlaDO.Models;
@@ -277,19 +278,19 @@ namespace VlaDO.Repositories
         /// начиная с указанного документа.
         /// </summary>
         /// <param name="docId">Идентификатор любого документа из ветки.</param>
+        /// <param name="ownerId">Идентификатор создателя документа.</param>
         /// <returns>Список документов в форке, включая указанный документ и его потомков.</returns>
-        public async Task<List<Document>> GetForkBranchAsync(Guid docId)
+        public async Task<List<Document>> GetForkBranchAsync(Guid docId, Guid ownerId)
         {
-            var doc = await _context.Documents
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.Id == docId);
+            var root = await _context.Documents.AsNoTracking()
+            .FirstOrDefaultAsync(d =>d.Id == docId && d.CreatedBy == ownerId);
+            if (root == null) return new();
 
-            if (doc == null)
-                return new List<Document>();
+            string prefix = string.IsNullOrEmpty(root.ForkPath) ? "" : root.ForkPath + ".";
 
             return await _context.Documents
-                .Where(d => d.ForkPath.StartsWith(doc.ForkPath))
-                .ToListAsync();
+            .Where(d =>d.CreatedBy == ownerId && (d.ForkPath == root.ForkPath ||
+                d.ForkPath.StartsWith(prefix))).ToListAsync();
         }
 
         /// <summary>

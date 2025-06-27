@@ -45,7 +45,7 @@ namespace VlaDO.Repositories.Documents
         Task<IEnumerable<Document>> GetArchivedForUserAsync(Guid userId);
 
         /// <summary>Получает все документы в пределах одной ветки (fork) документа.</summary>
-        Task<List<Document>> GetForkBranchAsync(Guid docId);
+        Task<List<Document>> GetForkBranchAsync(Guid docId, Guid ownerId);
 
         /// <summary>Возвращает последние версии всех доступных пользователю документов по веткам.</summary>
         Task<IEnumerable<Document>> GetLatestVersionsByForkPathAsync(Guid userId);
