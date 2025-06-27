@@ -15,43 +15,54 @@ namespace VlaDO.Helpers
         /// <param name="docRepo">Репозиторий документов.</param>
         /// <param name="parent">Родительский документ, для которого создается новая версия.</param>
         /// <returns>Кортеж из следующей версии и нового ForkPath.</returns>
-        public static async Task<(int version, string forkPath)> GenerateNextVersionAsync(IGenericRepository<Document> docRepo,
-            Document parent)
+        public static async Task<(int version, string forkPath)> GenerateNextVersionAsync(
+            IGenericRepository<Document> repo, Document parent)
         {
-            var children = await docRepo.FindAsync(d => d.ParentDocId == parent.Id);
+            var children = await repo.FindAsync(d => d.ParentDocId == parent.Id);
 
             if (!children.Any())
                 return (parent.Version + 1, parent.ForkPath);
 
-            var parentDepth = parent.ForkPath.Count(ch => ch == '.');
-            var prefix = parentDepth == 0 ? "" : parent.ForkPath.Substring(0, parent.ForkPath.LastIndexOf('.') + 1);
+            int parentDepth = parent.ForkPath.Count(ch => ch == '.');
+            bool hasContinuation = children.Any(c => c.ForkPath == parent.ForkPath);
 
-            if (children.Any(c => c.ForkPath == parent.ForkPath))
+            if (hasContinuation)
             {
-                var sameDepthNums = children
-                    .Where(c => c.ForkPath.Count(ch => ch == '.') == parentDepth)
-                    .Select(c => ExtractLastForkNumber(c.ForkPath))
-                    .ToList();
+                if (parentDepth == 0)
+                {
+                    var rootSiblings = children
+                        .Where(c => !c.ForkPath.Contains('.'))
+                        .Select(c => ExtractLastForkNumber(c.ForkPath))
+                        .Append(ExtractLastForkNumber(parent.ForkPath));
 
-                sameDepthNums.Add(ExtractLastForkNumber(parent.ForkPath));
+                    var next = rootSiblings.Max() + 1;
+                    return (parent.Version + 1, $"{next}");
+                }
+                else
+                {
+                    var immediateForks = children
+                        .Where(c => c.ForkPath.StartsWith(parent.ForkPath + ".") &&
+                                    c.ForkPath.Count(ch => ch == '.') == parentDepth + 1)
+                        .Select(c => ExtractLastForkNumber(c.ForkPath));
 
-                var nextNum = sameDepthNums.Max() + 1;
-                var newPath = $"{prefix}{nextNum}";
-                return (parent.Version + 1, newPath);
+                    var next = immediateForks.DefaultIfEmpty(0).Max() + 1;
+                    return (parent.Version + 1, $"{parent.ForkPath}.{next}");
+                }
             }
 
-            var deeperChildren = children
+            var deeper = children
                 .Where(c => c.ForkPath.StartsWith(parent.ForkPath + "."))
                 .Select(c => ExtractLastForkNumber(c.ForkPath));
 
-            if (deeperChildren.Any())
+            if (deeper.Any())
             {
-                var next = deeperChildren.Max() + 1;
+                var next = deeper.Max() + 1;
                 return (parent.Version + 1, $"{parent.ForkPath}.{next}");
             }
 
             return (parent.Version + 1, parent.ForkPath);
         }
+
 
         /// <summary>
         /// Извлекает последнюю числовую часть из ForkPath (после последней точки).

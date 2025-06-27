@@ -164,16 +164,6 @@ public class DocumentService : IDocumentService
         var doc = await Docs.GetByIdAsync(docId)
                   ?? throw new KeyNotFoundException();
 
-        if (doc.RoomId.HasValue)
-        {
-            await EnsureRoomAndAccess(doc.RoomId.Value, userId, AccessLevel.Full);
-        }
-        else
-        {
-            if (doc.CreatedBy != userId)
-                throw new UnauthorizedAccessException("Недостаточно прав");
-        }
-
         await _logger.LogAsync(
             ActivityType.DeletedDocument,
             authorId: userId,
@@ -186,6 +176,7 @@ public class DocumentService : IDocumentService
             await _uow.Tokens.DeleteAsync(tok.Id);
 
         await Docs.DeleteAsync(docId);
+        await _uow.CommitAsync();
     }
 
     public async Task<IEnumerable<Document>> GetByRoomAndUserAsyncExcludeCreator(Guid userId)

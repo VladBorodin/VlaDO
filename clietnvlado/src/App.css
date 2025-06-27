@@ -630,3 +630,10 @@ body.dark .pagination .page-item.disabled .page-link {
   border-color: #444;
   cursor: not-allowed;
 }
+
+body.dark .modal-body.text-light:not(.code-pane),
+body.dark .modal-header.text-light:not(.code-pane) {
+  color:#f8f9fa !important;
+}
+
+.syntaxhighlighter span { color:inherit !important; }

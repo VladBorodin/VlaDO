@@ -332,6 +332,24 @@ export default function DocumentsPage() {
     }
   };
 
+  const forkSegments = fp =>
+    fp === "0" ? [0] : fp.split(".").map(Number);
+
+  const parseMajor = v => Number(String(v).split("-")[0]);
+
+  const treeCompare = (a, b) => {
+    const as = forkSegments(a.forkPath);
+    const bs = forkSegments(b.forkPath);
+
+    if (as.length !== bs.length) return as.length - bs.length;
+
+    for (let i = 0; i < as.length; i++) {
+      if (as[i] !== bs[i]) return as[i] - bs[i];
+    }
+
+    return parseMajor(a.version) - parseMajor(b.version);
+  };
+
   const handleChangeAccess = async () => {
     if (!selectedDoc) return;
 
@@ -431,6 +449,8 @@ export default function DocumentsPage() {
   const handleRowClick = (docId) => {
     setSelectedRowId(docId);
   };
+
+  const seen = new Set();
 
   const getSortedDocuments = () => {
     if (!sortField) return documents;
@@ -1001,22 +1021,25 @@ export default function DocumentsPage() {
               </div>
               <div className="modal-body">
                 <ul className="list-unstyled">
-                  {versionTreeData.map((v, i) => {
-                    const path = v.forkPath.split(".");
-                    const isFork = path.length > 1 && path[path.length - 1] !== "0";
+  {([...versionTreeData].sort(treeCompare)).map(v => {
+    const isFirst = !seen.has(v.forkPath);
+    seen.add(v.forkPath);
 
-                    return (
-                      <li key={v.id} className="mb-2">
-                        <span style={{ color: "#d63384", fontFamily: "monospace" }}>
-                          {isFork ? "┣" : "|"} {v.forkPath.replace(/\./g, " → ")}
-                        </span>
-                        &nbsp;|&nbsp;
-                        <strong>{v.name}</strong>
-                        &nbsp;— {new Date(v.createdOn).toLocaleString("ru-RU")}
-                      </li>
-                    );
-                  })}
-                </ul>
+    return (
+      <li key={v.id} className="mb-2">
+        <span style={{ color:"#d63384", fontFamily:"monospace" }}>
+          {`v${v.version}${v.forkPath!=="0" ? `-${v.forkPath}` : ""}`}{" "}
+          {isFirst && v.forkPath!=="0" ? "┣" : "|"}{" "}
+          {v.forkPath.replace(/\./g," → ")}
+        </span>
+        {" | "}
+        <strong>{v.name}</strong>
+        {" — "}
+        {new Date(v.createdOn).toLocaleString("ru-RU")}
+      </li>
+    );
+  })}
+</ul>
               </div>
               <div className={`modal-footer ${theme === "dark" ? "bg-dark text-light" : ""}`}>
                 <button className="btn btn-secondary" onClick={() => setShowTreeModal(false)}>Закрыть</button>

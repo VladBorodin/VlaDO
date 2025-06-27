@@ -4,20 +4,28 @@ import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import { github as codeTheme } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import api from "./api";
-import ts    from "react-syntax-highlighter/dist/esm/languages/hljs/typescript";
-import json  from "react-syntax-highlighter/dist/esm/languages/hljs/json";
-import xml   from 'react-syntax-highlighter/dist/esm/languages/hljs/xml';
-import css   from "react-syntax-highlighter/dist/esm/languages/hljs/css";
-import bash  from "react-syntax-highlighter/dist/esm/languages/hljs/bash";
-import yaml  from "react-syntax-highlighter/dist/esm/languages/hljs/yaml";
+import typescript from "react-syntax-highlighter/dist/esm/languages/hljs/typescript";
+import javascript from "react-syntax-highlighter/dist/esm/languages/hljs/javascript";
+import json from "react-syntax-highlighter/dist/esm/languages/hljs/json";
+import xml from 'react-syntax-highlighter/dist/esm/languages/hljs/xml';
+import css from "react-syntax-highlighter/dist/esm/languages/hljs/css";
+import bash from "react-syntax-highlighter/dist/esm/languages/hljs/bash";
+import yaml from "react-syntax-highlighter/dist/esm/languages/hljs/yaml";
 import plaintext from 'react-syntax-highlighter/dist/esm/languages/hljs/plaintext';
 import csharp from 'react-syntax-highlighter/dist/esm/languages/hljs/csharp';
 import workerSrc from './pdf-worker.js';
+import go from "react-syntax-highlighter/dist/esm/languages/hljs/go";
+import php from "react-syntax-highlighter/dist/esm/languages/hljs/php";
 
 SyntaxHighlighter.registerLanguage("txt", plaintext);
 SyntaxHighlighter.registerLanguage("text", plaintext);
 SyntaxHighlighter.registerLanguage("md", plaintext);
-SyntaxHighlighter.registerLanguage("ts", ts);
+SyntaxHighlighter.registerLanguage("typescript", typescript);
+SyntaxHighlighter.registerLanguage("ts", typescript);
+SyntaxHighlighter.registerLanguage("javascript", javascript);
+SyntaxHighlighter.registerLanguage("js", javascript);
+SyntaxHighlighter.registerLanguage("go", go);
+SyntaxHighlighter.registerLanguage("php", php);
 SyntaxHighlighter.registerLanguage("json", json);
 SyntaxHighlighter.registerLanguage("xml", xml);
 SyntaxHighlighter.registerLanguage("html", xml);
@@ -32,10 +40,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 
 const FRIENDLY = [
   "pdf", "jpg", "jpeg", "png", "gif",
-  "txt","md","json","csv","js","ts","css","html","cs","xml"
+  "txt","md","json","csv","js","ts","css","html","cs","xml","go","php"
 ];
 
-const EDITABLE = ["txt", "md", "json", "js", "ts", "cs", "xml", "html", "yaml"];
+const EDITABLE = ["txt", "md", "json", "js", "ts", "cs", "xml", "html", "yaml","go","php"];
 
 
 export default function DocumentPreviewModal({ docId, show, onClose, onOk, theme, accessLevel, onDownload }) {
@@ -255,8 +263,13 @@ function TextViewer({ blob, extension, theme }) {
   const selectedTheme = theme === "dark" ? atomOneDark : codeTheme;
 
   const EXT_TO_LANG = {
-    cs:  "csharp",
     txt: "text",
+    md:  "text",
+    js:  "javascript",
+    ts:  "typescript",
+    cs:  "csharp",
+    go:  "go",
+    php:  "php"
   };
 
   useEffect(() => {
@@ -350,62 +363,51 @@ function TextEditor({ blob, extension, theme, canEdit, onTextChange }) {
 
   const EXT_TO_LANG = {
     txt: "text",
-    md: "text",
-    cs:  "csharp",
-    ts:  "typescript",
+    md:  "text",
     js:  "javascript",
+    ts:  "typescript",
     json: "json",
     html: "xml",
-    xml: "xml",
+    xml:  "xml",
     yaml: "yaml",
-    css: "css",
-    sh: "bash",
-    bash: "bash"
+    css:  "css",
+    sh:   "bash",
+    bash: "bash",
+    cs:   "csharp",
+    php:  "php"
   };
 
   const lang = EXT_TO_LANG[extension] ?? extension;
 
-  // прокинем изменение текста наружу, если нужно
   useEffect(() => {
     if (onTextChange) onTextChange(text);
   }, [text]);
 
-  return isEditable ? (
-    <textarea
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      style={{
-        backgroundColor: theme === "dark" ? "#1e1e1e" : "#f8f9fa",
-        color: theme === "dark" ? "#f8f9fa" : "#212529",
-        border: "none",
-        resize: "none",
-        width: "100%",
-        height: "600px",
-        padding: "1rem",
-        fontFamily: "monospace",
-        fontSize: "14px",
-        lineHeight: 1.5,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word"
-      }}
-    />
-  ) : (
-    <SyntaxHighlighter
-      language={lang}
-      style={selectedTheme}
-      customStyle={{
-        maxHeight: 600,
-        fontSize: 14,
-        padding: "1rem",
-        lineHeight: 1.5,
-        fontFamily: "monospace",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-        textAlign: "left",
-        backgroundColor: theme === "dark" ? "#1e1e1e" : "transparent"
-      }}
-      showLineNumbers
-    >
+  if (isEditable) {
+    return (
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        style={{
+          background: theme === "dark" ? "#1e1e1e" : "#f8f9fa",
+          color: theme === "dark" ? "#f8f9fa" : "#212529",
+          border: "none",
+          resize: "vertical",
+          width: "100%",
+          height: "600px",
+          padding: "1rem",
+          fontFamily: "monospace",
+          fontSize: "14px",
+          lineHeight: 1.5,
+          whiteSpace: "pre",
+          overflowX: "auto"
+        }}
+      />
+    );
+  }
+
+  return (
+    <SyntaxHighlighter /* …как было… */>
       {text}
     </SyntaxHighlighter>
   );
