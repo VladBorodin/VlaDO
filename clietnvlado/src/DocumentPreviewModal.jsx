@@ -17,6 +17,18 @@ import workerSrc from './pdf-worker.js';
 import go from "react-syntax-highlighter/dist/esm/languages/hljs/go";
 import php from "react-syntax-highlighter/dist/esm/languages/hljs/php";
 
+import Editor from "react-simple-code-editor";
+import { highlight, languages } from "prismjs/components/prism-core";
+import "prismjs/components/prism-clike";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-css";
+import "prismjs/components/prism-markup";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-yaml";
+import "prismjs/components/prism-csharp";
+import "prismjs/themes/prism-tomorrow.css";
+
 SyntaxHighlighter.registerLanguage("txt", plaintext);
 SyntaxHighlighter.registerLanguage("text", plaintext);
 SyntaxHighlighter.registerLanguage("md", plaintext);
@@ -44,6 +56,18 @@ const FRIENDLY = [
 ];
 
 const EDITABLE = ["txt", "md", "json", "js", "ts", "cs", "xml", "html", "yaml","go","php"];
+
+const prismMap = {
+  javascript: languages.javascript,
+  typescript: languages.typescript,
+  css:        languages.css,
+  xml:        languages.markup,
+  html:       languages.markup,
+  json:       languages.json,
+  yaml:       languages.yaml,
+  csharp:     languages.clike,
+  text:       languages.clike
+};
 
 
 export default function DocumentPreviewModal({ docId, show, onClose, onOk, theme, accessLevel, onDownload }) {
@@ -377,37 +401,36 @@ function TextEditor({ blob, extension, theme, canEdit, onTextChange }) {
     php:  "php"
   };
 
-  const lang = EXT_TO_LANG[extension] ?? extension;
+  const lang = EXT_TO_LANG[extension] ?? "text";
 
   useEffect(() => {
     if (onTextChange) onTextChange(text);
   }, [text]);
 
-  if (isEditable) {
-    return (
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        style={{
-          background: theme === "dark" ? "#1e1e1e" : "#f8f9fa",
-          color: theme === "dark" ? "#f8f9fa" : "#212529",
-          border: "none",
-          resize: "vertical",
-          width: "100%",
-          height: "600px",
-          padding: "1rem",
-          fontFamily: "monospace",
-          fontSize: "14px",
-          lineHeight: 1.5,
-          whiteSpace: "pre",
-          overflowX: "auto"
-        }}
-      />
-    );
-  }
-
-  return (
-    <SyntaxHighlighter /* …как было… */>
+  return canEdit ? (
+    <Editor
+      value={text}
+      onValueChange={val => setText(val)}
+      highlight={code => highlight(code, prismMap[lang] || languages.clike)}
+      padding={12}
+      textareaId="codeArea"
+      className={theme === "dark" ? "editor-dark" : "editor-light"}
+      style={{
+        minHeight: 600,
+        fontFamily: "monospace",
+        fontSize: 14,
+        background: theme === "dark" ? "#1e1e1e" : "#f8f9fa",
+        color:      theme === "dark" ? "#f8f9fa" : "#212529",
+        whiteSpace: "pre"
+      }}
+    />
+  ) : (
+    <SyntaxHighlighter
+      language={lang}
+      style={selectedTheme}
+      showLineNumbers
+      customStyle={{ /* как было */ }}
+    >
       {text}
     </SyntaxHighlighter>
   );

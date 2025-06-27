@@ -637,3 +637,6 @@ body.dark .modal-header.text-light:not(.code-pane) {
 }
 
 .syntaxhighlighter span { color:inherit !important; }
+
+.editor-dark  { background:#1e1e1e; color:#f8f9fa; }
+.editor-light { background:#f8f9fa; color:#212529; }

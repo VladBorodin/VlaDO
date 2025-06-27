@@ -97,9 +97,20 @@ export default function DocumentsPage() {
     }
   };
 
-  const [theme, setTheme] = useState(() =>(
-    document.body.classList.contains("dark") ? "dark" : "light"
-  ));
+  const getInitialTheme = () => {
+    const saved = localStorage.getItem("theme");
+    if (saved) return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark" : "light";
+  };
+
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    document.body.classList.toggle("dark", theme === "dark");
+    document.body.classList.toggle("light", theme !== "dark");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
   
   useEffect(() => {
     document.body.classList.toggle("dark", theme === "dark");

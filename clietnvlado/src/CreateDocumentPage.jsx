@@ -18,9 +18,22 @@ export default function CreateDocumentPage() {
   const navigate = useNavigate();
   const [prevHash, setPrevHash] = useState("");
   const { push } = useAlert();
-  const [darkMode, setDarkMode] = useState(
-    () => document.body.classList.contains("dark")
-  );
+
+  const getInitialTheme = () => {
+    const saved = localStorage.getItem("theme");
+    if (saved) return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark" : "light";
+  };
+
+  const [theme, setTheme] = useState(getInitialTheme);
+
+  useEffect(() => {
+    document.body.classList.toggle("dark", theme === "dark");
+    document.body.classList.toggle("light", theme !== "dark");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
   const [dragActive, setDragActive] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -39,7 +52,7 @@ export default function CreateDocumentPage() {
       if (Array.isArray(r.data)) setDocs(r.data);
     });
     
-    if (darkMode) {
+    if (theme) {
       document.body.classList.add("dark");
       document.body.classList.remove("light");
       localStorage.setItem("theme", "dark");
@@ -48,7 +61,7 @@ export default function CreateDocumentPage() {
       document.body.classList.remove("dark");
       localStorage.setItem("theme", "light");
     }
-  }, [darkMode]);
+  }, [theme]);
 
   const handleFileDrop = e => {
     e.preventDefault();
@@ -97,7 +110,7 @@ export default function CreateDocumentPage() {
 
   if (isLoading) {
     return (
-      <div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${darkMode ? "bg-dark" : "bg-light"}`}>
+      <div className={`fade-screen ${fadeOut ? "fade-out" : ""} ${theme ? "bg-dark" : "bg-light"}`}>
         <LoadingSpinner size={200} />
       </div>
     );
@@ -111,9 +124,9 @@ export default function CreateDocumentPage() {
             </button>
             <button
               className="btn theme-toggle-btn"
-              onClick={() => setDarkMode(!darkMode)}
+              onClick={() => setTheme(!theme)}
             >
-              {darkMode ? <FaSun /> : <FaMoon />}
+              {theme ? <FaSun /> : <FaMoon />}
             </button>
           </div>
         <div className="card-header fw-bold">Создание документа</div>

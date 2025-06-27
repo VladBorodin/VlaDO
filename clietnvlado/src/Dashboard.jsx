@@ -13,9 +13,6 @@ export default function Dashboard({ onLogout }) {
   const [showProfile, setShowProfile] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
   const [user, setUser] = useState(null);
-  const [theme, setTheme] = useState(() =>(
-    document.body.classList.contains("dark") ? "dark" : "light"
-  ));
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -27,6 +24,15 @@ export default function Dashboard({ onLogout }) {
 
   const [isLoading, setIsLoading] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
+
+  const getInitialTheme = () => {
+    const saved = localStorage.getItem("theme");
+    if (saved) return saved;                 // "dark" | "light"
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark" : "light";
+  };
+
+  const [theme, setTheme] = useState(getInitialTheme);
 
   useEffect(() => {
     const loadMe = async () => {
@@ -46,6 +52,7 @@ export default function Dashboard({ onLogout }) {
   useEffect(() => {
     document.body.classList.toggle("dark", theme === "dark");
     document.body.classList.toggle("light", theme !== "dark");
+    localStorage.setItem("theme", theme);
   }, [theme]);
 
   useEffect(() => {
