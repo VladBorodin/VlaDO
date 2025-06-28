@@ -84,6 +84,8 @@ public class DocumentTokenController : ControllerBase
     public async Task<IActionResult> Upsert(Guid docId, [FromBody] UpdateAccessDto dto)
     {
         var authorId = User.GetUserId();
+        var doc = await _uow.Documents.GetByIdAsync(docId)
+              ?? throw new KeyNotFoundException();
         if (!await _perm.CheckAccessAsync(User.GetUserId(), docId, AccessLevel.Full))
             return Forbid();
 
@@ -93,9 +95,6 @@ public class DocumentTokenController : ControllerBase
 
         if (tok == null)
         {
-            var doc = await Docs.GetByIdAsync(docId)
-                  ?? throw new KeyNotFoundException();
-
             tok = new DocumentToken
             {
                 DocumentId = docId,
@@ -124,7 +123,7 @@ public class DocumentTokenController : ControllerBase
             ActivityType.UpdatedToken,
             authorId: authorId,
             subjectId: tok.Id,
-            meta: new { tok.Document.Name },
+            meta: new { doc.Name },
             toUserId: dto.UserId
         );
 
