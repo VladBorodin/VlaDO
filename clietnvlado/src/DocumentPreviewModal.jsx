@@ -122,6 +122,9 @@ export default function DocumentPreviewModal({ docId, show, onClose, onOk, theme
   const extension = meta?.extension;
   const url = blob ? URL.createObjectURL(blob) : null;
 
+  const roomId = meta?.roomId ?? meta?.RoomId ?? meta?.room?.id ?? meta?.Room?.id;
+  const roomTitle = meta?.roomTitle ?? meta?.RoomTitle ?? meta?.room?.title ?? meta?.Room?.title;
+
   const modalContentStyle = thm =>
     thm === "dark" ? { background: "#1e1e1e", color: "#f8f9fa" } : {};
 
@@ -146,9 +149,8 @@ export default function DocumentPreviewModal({ docId, show, onClose, onOk, theme
     formData.append("note", note);
 
     try {
-      if (meta.roomTitle) {
-        const roomId = meta.roomId || meta.room?.id;
-        await api.post(`/api/rooms/${roomId}/docs/${meta.id}/new-version`, formData);
+      if (roomTitle){
+        await api.post(`rooms/${roomId}/docs/${meta.id}/new-version`, formData);
       } else {
         await api.post(`/documents/${meta.id}/version`, formData);
       }
@@ -192,7 +194,7 @@ export default function DocumentPreviewModal({ docId, show, onClose, onOk, theme
                       </tr>
                       <tr><th>Размер</th><td>{(meta.size/1024).toFixed(1)}&nbsp;КБ</td></tr>
                       <tr><th>Формат</th><td>{meta.extension}</td></tr>
-                      {meta.roomTitle && <tr><th>Комната</th><td>{meta.roomTitle}</td></tr>}
+                      {roomTitle && <tr><th>Комната</th><td>{roomTitle}</td></tr>}
                       {meta.createdBy && <tr><th>Автор</th><td>{meta.createdBy}</td></tr>}
                       {meta.createdAt && <tr><th>Дата</th><td>{new Date(meta.createdAt).toLocaleString()}</td></tr>}
                     </tbody>
